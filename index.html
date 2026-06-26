@@ -173,6 +173,7 @@
     <button class="tbtn undo" id="btnUndo">Undo Record</button>
     <button class="tbtn pdf"  id="btnPdf">Export PDF</button>
     <button class="tbtn" id="btnImport" style="background:#0b8457">Import Excel</button>
+    <button class="tbtn" id="btnIssueSlip" style="background:#e07b00">Issue Slip &rarr;</button>
     <button class="tbtn users" id="btnUsers" style="display:none">Users</button>
     <div class="spacer"></div>
     <button class="tbtn icon" id="btnPrint" title="Print">🖨</button>
@@ -787,6 +788,7 @@ function wire(){
   $("usersClose").onclick=()=>$("usersBg").classList.remove("show");$("nuAdd").onclick=addUser;
   $("euCancel").onclick=()=>$("editUserBg").classList.remove("show");$("euSave").onclick=saveEditUser;
   $("btnImport").onclick=openImport;$("importClose").onclick=()=>$("importBg").classList.remove("show");$("impRun").onclick=doImport;$("impTemplate").onclick=importTemplate;
+  $("btnIssueSlip").onclick=()=>{if(dirty&&!confirm("Discard unsaved changes?"))return;location.href="issue-slip.html";};
   ["checked_by","noted_by"].forEach(f=>$(f).addEventListener("input",()=>{if($(f).value.trim())$(f).style.borderBottom="";}));
   $("listSearch").addEventListener("input",e=>renderList(e.target.value));
   ["supplier","storage","rr_date","cv_no","po_no","rrcode","number","note","checked_by","prepared_by","noted_by","verified_by"].forEach(f=>$(f).addEventListener("input",markDirty));
