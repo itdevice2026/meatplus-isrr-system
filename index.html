@@ -433,6 +433,18 @@ function gather(){
 }
 async function saveRecord(){
   if(!canEdit())return;
+  // Required: Checked By & Noted By
+  const chk=$("checked_by"), notd=$("noted_by"), need=[];
+  chk.style.borderBottom = chk.value.trim() ? "" : "2px solid #c30c24";
+  notd.style.borderBottom = notd.value.trim() ? "" : "2px solid #c30c24";
+  if(!chk.value.trim()) need.push("CHECKED BY");
+  if(!notd.value.trim()) need.push("NOTED BY");
+  if(need.length){
+    setStatus("Required: "+need.join(" & ")+" must be filled before saving","err");
+    alert("Please fill in "+need.join(" and ")+" before saving the report.");
+    (chk.value.trim()?notd:chk).focus();
+    return;
+  }
   const{h,items}=gather();setStatus("Saving…");
   try{
     let id=current?.header?.id;
@@ -609,6 +621,7 @@ function wire(){
   $("modalInput").addEventListener("keydown",e=>{if(e.key==="Enter")modalSave();});
   $("usersClose").onclick=()=>$("usersBg").classList.remove("show");$("nuAdd").onclick=addUser;
   $("btnImport").onclick=openImport;$("importClose").onclick=()=>$("importBg").classList.remove("show");$("impRun").onclick=doImport;$("impTemplate").onclick=importTemplate;
+  ["checked_by","noted_by"].forEach(f=>$(f).addEventListener("input",()=>{if($(f).value.trim())$(f).style.borderBottom="";}));
   $("listSearch").addEventListener("input",e=>renderList(e.target.value));
   ["supplier","storage","rr_date","cv_no","po_no","rrcode","number","note","checked_by","prepared_by","noted_by","verified_by"].forEach(f=>$(f).addEventListener("input",markDirty));
   document.querySelectorAll('input[name="ttype"]').forEach(r=>r.addEventListener("change",markDirty));
