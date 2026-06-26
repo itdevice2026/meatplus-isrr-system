@@ -171,6 +171,7 @@
       </tr></thead>
       <tbody id="itemBody"></tbody>
     </table>
+    <div style="margin:8px 2px 0"><button id="btnAddRow" class="miniadd green" style="padding:8px 16px">+ Add Row</button></div>
 
     <div class="footgrid">
       <div class="note"><label>NOTE</label><textarea id="note"></textarea></div>
@@ -246,7 +247,8 @@ const SUPABASE_KEY = "sb_publishable_u_qnmEI8oHI9Z_A0-Hht3Q_Yvaa7Ork";
 const FN_URL = SUPABASE_URL + "/functions/v1/isrr-admin";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const ROWS = 15;
+const MIN_ROWS = 3;        // rows shown initially
+let rowCount = MIN_ROWS;    // current number of item rows
 let reports=[], idx=-1, current=null, suppliers=[], storages=[], dirty=false;
 let me = { id:null, role:'viewer', name:'', email:'' };
 
@@ -288,7 +290,7 @@ async function doLogout(){
 }
 function applyRole(){
   const ed=canEdit();
-  ["btnAdd","btnSave","btnDelete"].forEach(b=>$(b).disabled=!ed);
+  ["btnAdd","btnSave","btnDelete","btnAddRow"].forEach(b=>$(b).disabled=!ed);
   document.querySelectorAll("#formView input, #formView select, #formView textarea, .miniadd")
     .forEach(el=>{ if(el.id==="seq_no"||el.id==="totBoxes"||el.id==="totWeight")return;
       el.disabled = !ed; });
@@ -307,27 +309,42 @@ async function loadMasters(){
 }
 function fillSelect(el,rows){const cur=el.value;el.innerHTML='<option value=""></option>'+rows.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join("");el.value=cur;}
 
-// ---------- ROWS ----------
-function buildRows(){
-  const tb=$("itemBody");tb.innerHTML="";
-  for(let i=0;i<ROWS;i++){
-    const tr=document.createElement("tr");
-    tr.innerHTML=`
-      <td class="l"><input data-f="item" data-i="${i}" list="itemlist"></td>
-      <td class="l"><input data-f="brand" data-i="${i}"></td>
-      <td><input data-f="number_of_boxes" data-i="${i}" inputmode="decimal"></td>
-      <td><input data-f="net_weight" data-i="${i}" inputmode="decimal"></td>
-      <td><input data-f="pd" data-i="${i}" placeholder="dd-Mmm-yy"></td>
-      <td><input data-f="ed" data-i="${i}" placeholder="dd-Mmm-yy"></td>
-      <td class="l"><input data-f="remarks" data-i="${i}"></td>
-      <td style="text-align:center"><button class="rowdel" data-del="${i}">×</button></td>`;
-    tb.appendChild(tr);
-  }
-  tb.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{markDirty();if(inp.dataset.f==="number_of_boxes"||inp.dataset.f==="net_weight")recalc();}));
-  tb.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{if(!canEdit())return;const i=b.dataset.del;tb.querySelectorAll(`input[data-i="${i}"]`).forEach(x=>x.value="");markDirty();recalc();}));
-  if(!canEdit()) tb.querySelectorAll("input").forEach(el=>el.disabled=true);
+// ---------- ROWS (dynamic) ----------
+const cell=(tr,f)=>tr.querySelector(`input[data-f="${f}"]`);
+const allRows=()=>document.querySelectorAll("#itemBody tr");
+function makeRow(){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td class="l"><input data-f="item" list="itemlist"></td>
+    <td class="l"><input data-f="brand"></td>
+    <td><input data-f="number_of_boxes" inputmode="decimal"></td>
+    <td><input data-f="net_weight" inputmode="decimal"></td>
+    <td><input data-f="pd" placeholder="dd-Mmm-yy"></td>
+    <td><input data-f="ed" placeholder="dd-Mmm-yy"></td>
+    <td class="l"><input data-f="remarks"></td>
+    <td style="text-align:center"><button class="rowdel" title="Remove / clear row">×</button></td>`;
+  tr.querySelectorAll("input").forEach(inp=>{
+    inp.addEventListener("input",()=>{markDirty();if(inp.dataset.f==="number_of_boxes"||inp.dataset.f==="net_weight")recalc();});
+    if(!canEdit()) inp.disabled=true;
+  });
+  tr.querySelector(".rowdel").addEventListener("click",()=>{
+    if(!canEdit())return;
+    if(allRows().length>MIN_ROWS){ tr.remove(); }      // remove extra rows entirely
+    else { tr.querySelectorAll("input").forEach(x=>x.value=""); }  // keep the base rows, just clear
+    rowCount=allRows().length; markDirty(); recalc();
+  });
+  return tr;
 }
-const rowInput=(i,f)=>document.querySelector(`#itemBody input[data-i="${i}"][data-f="${f}"]`);
+function buildRows(n){
+  rowCount=Math.max(MIN_ROWS, n||MIN_ROWS);
+  const tb=$("itemBody");tb.innerHTML="";
+  for(let i=0;i<rowCount;i++) tb.appendChild(makeRow());
+}
+function addRow(){
+  if(!canEdit())return;
+  $("itemBody").appendChild(makeRow());
+  rowCount=allRows().length; markDirty();
+}
 
 const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const isoToDisp=iso=>{if(!iso)return"";const[y,m,d]=iso.split("-");return `${(+d)<10?"0"+(+d):d}-${MON[+m-1]}-${String(y).slice(2)}`;};
@@ -336,7 +353,7 @@ function dispToIso(s){if(!s)return null;s=s.trim();if(/^\d{4}-\d{2}-\d{2}$/.test
   if(m){const mi=MON.findIndex(x=>x.toLowerCase()===m[2].toLowerCase());if(mi<0)return null;let y=+m[3];if(y<100)y+=2000;return `${y}-${String(mi+1).padStart(2,"0")}-${String(+m[1]).padStart(2,"0")}`;}
   const d=new Date(s);return isNaN(d)?null:d.toISOString().slice(0,10);}
 
-function recalc(){let b=0,w=0;for(let i=0;i<ROWS;i++){if(!rowInput(i,"item").value.trim())continue;b+=parseFloat(rowInput(i,"number_of_boxes").value)||0;w+=parseFloat(rowInput(i,"net_weight").value)||0;}
+function recalc(){let b=0,w=0;allRows().forEach(tr=>{if(!cell(tr,"item").value.trim())return;b+=parseFloat(cell(tr,"number_of_boxes").value)||0;w+=parseFloat(cell(tr,"net_weight").value)||0;});
   $("totBoxes").value=b?b.toLocaleString(undefined,{maximumFractionDigits:3}):"";
   $("totWeight").value=w?w.toLocaleString(undefined,{minimumFractionDigits:3,maximumFractionDigits:3}):"";}
 
@@ -356,7 +373,7 @@ async function loadCurrent(){
   current={header:hdr,items:items||[]};renderCurrent();
 }
 function renderCurrent(){
-  buildRows();
+  buildRows((current?.items||[]).length);
   const h=current?.header||blankHeader();
   $("supplier").value=h.supplier_id||"";$("storage").value=h.storage_id||"";
   $("rr_date").value=h.rr_date||"";$("cv_no").value=h.cv_no||"";$("po_no").value=h.po_no||"";
@@ -364,10 +381,11 @@ function renderCurrent(){
   $("note").value=h.note||"";$("checked_by").value=h.checked_by||"";$("prepared_by").value=h.prepared_by||"";
   $("noted_by").value=h.noted_by||"";$("verified_by").value=h.verified_by||"";
   document.querySelectorAll('input[name="ttype"]').forEach(r=>{r.checked=(r.value===(h.transaction_type||"PURCHASED"));r.disabled=!canEdit();});
-  (current?.items||[]).forEach((it,i)=>{if(i>=ROWS)return;
-    rowInput(i,"item").value=it.item||"";rowInput(i,"brand").value=it.brand||"";
-    rowInput(i,"number_of_boxes").value=it.number_of_boxes??"";rowInput(i,"net_weight").value=it.net_weight??"";
-    rowInput(i,"pd").value=isoToDisp(it.pd);rowInput(i,"ed").value=isoToDisp(it.ed);rowInput(i,"remarks").value=it.remarks||"";});
+  const trs=allRows();
+  (current?.items||[]).forEach((it,i)=>{const tr=trs[i];if(!tr)return;
+    cell(tr,"item").value=it.item||"";cell(tr,"brand").value=it.brand||"";
+    cell(tr,"number_of_boxes").value=it.number_of_boxes??"";cell(tr,"net_weight").value=it.net_weight??"";
+    cell(tr,"pd").value=isoToDisp(it.pd);cell(tr,"ed").value=isoToDisp(it.ed);cell(tr,"remarks").value=it.remarks||"";});
   recalc();$("recInfo").textContent=(reports.length?(idx+1):0)+" of "+reports.length;clearDirty();navButtons();applyRole();
 }
 const blankHeader=()=>({transaction_type:"PURCHASED",rr_date:new Date().toISOString().slice(0,10)});
@@ -381,10 +399,10 @@ function gather(){
     checked_by:$("checked_by").value.trim()||null,prepared_by:$("prepared_by").value.trim()||null,
     noted_by:$("noted_by").value.trim()||null,verified_by:$("verified_by").value.trim()||null};
   const items=[];
-  for(let i=0;i<ROWS;i++){const item=rowInput(i,"item").value.trim();if(!item)continue;
-    items.push({line_no:items.length+1,item,brand:rowInput(i,"brand").value.trim()||null,
-      number_of_boxes:parseFloat(rowInput(i,"number_of_boxes").value)||null,net_weight:parseFloat(rowInput(i,"net_weight").value)||null,
-      pd:dispToIso(rowInput(i,"pd").value),ed:dispToIso(rowInput(i,"ed").value),remarks:rowInput(i,"remarks").value.trim()||null});}
+  allRows().forEach(tr=>{const item=cell(tr,"item").value.trim();if(!item)return;
+    items.push({line_no:items.length+1,item,brand:cell(tr,"brand").value.trim()||null,
+      number_of_boxes:parseFloat(cell(tr,"number_of_boxes").value)||null,net_weight:parseFloat(cell(tr,"net_weight").value)||null,
+      pd:dispToIso(cell(tr,"pd").value),ed:dispToIso(cell(tr,"ed").value),remarks:cell(tr,"remarks").value.trim()||null});});
   return{h,items};
 }
 async function saveRecord(){
@@ -497,8 +515,8 @@ function generatePDF(){
   line(L,"Supplier:",supName,330,"CV NO:",$("cv_no").value);
   line(L,"Storage:",stoName,330,"PO NO:",$("po_no").value);
   line(L,"Type:",document.querySelector('input[name="ttype"]:checked')?.value||"",330,"NUMBER:",$("number").value);
-  const body=[];for(let i=0;i<ROWS;i++){const it=rowInput(i,"item").value.trim();if(!it)continue;
-    body.push([it,rowInput(i,"brand").value,rowInput(i,"number_of_boxes").value,rowInput(i,"net_weight").value,rowInput(i,"pd").value,rowInput(i,"ed").value,rowInput(i,"remarks").value]);}
+  const body=[];allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(!it)return;
+    body.push([it,cell(tr,"brand").value,cell(tr,"number_of_boxes").value,cell(tr,"net_weight").value,cell(tr,"pd").value,cell(tr,"ed").value,cell(tr,"remarks").value]);});
   doc.autoTable({startY:y+6,head:[["ITEM","BRAND","BOXES","NET WT","PD","ED","REMARKS"]],body,
     styles:{fontSize:9,cellPadding:3},headStyles:{fillColor:[232,17,45],halign:"center"},
     columnStyles:{2:{halign:"right"},3:{halign:"right"}},theme:"grid"});
@@ -513,7 +531,7 @@ function generatePDF(){
 
 // ---------- WIRE ----------
 function wire(){
-  $("btnAdd").onclick=newRecord;$("btnSave").onclick=saveRecord;$("btnDelete").onclick=deleteRecord;
+  $("btnAdd").onclick=newRecord;$("btnSave").onclick=saveRecord;$("btnDelete").onclick=deleteRecord;$("btnAddRow").onclick=addRow;
   $("btnUndo").onclick=()=>{if(current)renderCurrent();else newRecord();setStatus("Reverted");};
   $("btnList").onclick=()=>toggleList(!$("listView").classList.contains("show"));
   $("btnPdf").onclick=generatePDF;$("btnPrint").onclick=()=>window.print();$("btnLogout").onclick=doLogout;
