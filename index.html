@@ -181,7 +181,7 @@
 
     <div class="sign">
       <div class="s"><label>CHECKED BY</label><input type="text" id="checked_by" /></div>
-      <div class="s"><label>PREPARED BY</label><input type="text" id="prepared_by" /></div>
+      <div class="s"><label>PREPARED BY</label><input type="text" id="prepared_by" readonly title="Automatically set to the logged-in user who prepared this report" /></div>
       <div class="s"><label>NOTED BY</label><input type="text" id="noted_by" /></div>
       <div class="s"><label>VERIFIED BY</label><input type="text" id="verified_by" /></div>
     </div>
@@ -411,7 +411,7 @@ async function saveRecord(){
   try{
     let id=current?.header?.id;
     if(id){const{error}=await sb.from("isrr_reports").update(h).eq("id",id);if(error)throw error;}
-    else{const{data,error}=await sb.from("isrr_reports").insert(h).select("id").single();if(error)throw error;id=data.id;}
+    else{if(!h.prepared_by)h.prepared_by=me.name||me.email||null;const{data,error}=await sb.from("isrr_reports").insert(h).select("id").single();if(error)throw error;id=data.id;}
     await sb.from("isrr_items").delete().eq("report_id",id);
     if(items.length){const{error:ie}=await sb.from("isrr_items").insert(items.map(it=>({...it,report_id:id})));if(ie)throw ie;}
     await loadList();idx=reports.findIndex(r=>r.id===id);await loadCurrent();setStatus("Saved ✓","ok");
@@ -421,6 +421,7 @@ function newRecord(){
   if(!canEdit())return;
   current=null;idx=-1;buildRows();
   ["cv_no","po_no","rrcode","number","note","checked_by","prepared_by","noted_by","verified_by"].forEach(f=>$(f).value="");
+  $("prepared_by").value=me.name||me.email||"";   // reflects who is making the transaction
   $("supplier").value="";$("storage").value="";$("rr_date").value=new Date().toISOString().slice(0,10);
   $("seq_no").value="(new)";$("rrcode").placeholder="(auto on save)";
   document.querySelectorAll('input[name="ttype"]').forEach(r=>r.checked=(r.value==="PURCHASED"));
