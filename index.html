@@ -414,13 +414,15 @@ function makeRow(){
     else { tr.querySelectorAll("input").forEach(x=>x.value=""); }  // keep the base rows, just clear
     rowCount=allRows().length; markDirty(); recalc();
   });
-  // when an Item is chosen, auto-fill its Brand (if Brand is still empty)
-  tr.querySelector('input[data-f="item"]').addEventListener("change",()=>{
+  // when an Item is chosen/typed, reflect its Brand automatically (matches known item)
+  const itemInp=tr.querySelector('input[data-f="item"]');
+  const reflectBrand=()=>{
     if(!canEdit())return;
-    const b=itemBrandMap[(cell(tr,"item").value||"").trim().toLowerCase()];
-    const bc=cell(tr,"brand");
-    if(b && !bc.value.trim()){ bc.value=b; markDirty(); }
-  });
+    const b=itemBrandMap[(itemInp.value||"").trim().toLowerCase()];
+    if(b){const bc=cell(tr,"brand");if(bc.value!==b){bc.value=b;markDirty();}}
+  };
+  itemInp.addEventListener("input",reflectBrand);   // fires when picking a datalist suggestion
+  itemInp.addEventListener("change",reflectBrand);  // and on blur / commit
   return tr;
 }
 function buildRows(n){
