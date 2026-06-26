@@ -224,6 +224,7 @@ function applyRole(){
   const ed=canEdit();
   ["btnAdd","btnSave","btnDelete","btnAddRow"].forEach(b=>$(b).disabled=!ed);
   document.querySelectorAll("#formView input").forEach(el=>{if(el.id==="is_code")return;el.disabled=!ed;});
+  $("btnCal").style.display = (me.role==='admin') ? '' : 'none';   // calibration is admin-only, shared to all
 }
 
 // ---- ROWS ----
@@ -351,14 +352,19 @@ const POS={
   col:{item:30, brand:206, boxes:399, net:464, actual:536},  // boxes/net/actual are centers
   sign:{issued_by:{x:24}, transport:{x:178}, checker:{x:316}, received_by:{x:476}, y:336}
 };
-function loadCalMap(){try{return JSON.parse(localStorage.getItem("isCalMap")||"{}")||{};}catch(_){return{};}}
-function saveCalMap(m){localStorage.setItem("isCalMap",JSON.stringify(m));}
-function getFont(){return localStorage.getItem("isFont")||"helvetica";}
-function getFontSize(){return parseFloat(localStorage.getItem("isFontSize"))||9;}
+// Shared calibration settings (set by admin, used by everyone)
+let SETTINGS={calMap:{},font:"helvetica",fontSize:9};
+async function loadSettings(){
+  try{const{data}=await sb.from("isrr_issue_settings").select("config").eq("id",1).single();
+    if(data&&data.config){SETTINGS={calMap:data.config.calMap||{},font:data.config.font||"helvetica",fontSize:parseFloat(data.config.fontSize)||9};}
+  }catch(e){}
+}
+function getFont(){return SETTINGS.font;}
+function getFontSize(){return SETTINGS.fontSize;}
 function fontCss(f){return f==="times"?"'Times New Roman',Georgia,serif":f==="courier"?"'Courier New',monospace":"Arial,Helvetica,sans-serif";}
 // effective positions = defaults merged with saved per-field overrides
 function effPos(m){
-  m=m||loadCalMap();
+  m=m||SETTINGS.calMap||{};
   const s=k=>(m.sign&&m.sign[k])||{x:POS.sign[k].x,y:POS.sign.y};
   return {
     date:m.date||{...POS.date}, origin:m.origin||{...POS.origin},
@@ -433,10 +439,20 @@ function calRender(){
   h+=drag("sign:issued_by",P.sign.issued_by.x,P.sign.issued_by.y,d.issued)+drag("sign:transport",P.sign.transport.x,P.sign.transport.y,d.transport)+drag("sign:checker",P.sign.checker.x,P.sign.checker.y,d.checker)+drag("sign:received_by",P.sign.received_by.x,P.sign.received_by.y,d.received);
   $("calLayer").innerHTML=h;
 }
-function openCal(){calMap=loadCalMap();$("calMsg").textContent="";$("calFont").value=getFont();$("calSize").value=String(getFontSize());$("calBg").classList.add("show");
+function openCal(){
+  if(me.role!=='admin'){setStatus("Only an admin can adjust calibration","err");return;}
+  calMap=JSON.parse(JSON.stringify(SETTINGS.calMap||{}));
+  $("calMsg").textContent="";$("calFont").value=getFont();$("calSize").value=String(getFontSize());$("calBg").classList.add("show");
   const img=$("calImg");if(img.complete&&img.clientWidth)calRender();else img.onload=calRender;}
-function saveCal(){saveCalMap(calMap);$("calMsg").textContent="Saved ✓ — alignment will apply when you Print Slip";$("calMsg").className="status ok";}
-function calResetAll(){calMap={};calRender();$("calMsg").textContent="Reset to defaults";$("calMsg").className="status";}
+async function saveCal(){
+  if(me.role!=='admin'){$("calMsg").textContent="Admin only";$("calMsg").className="status err";return;}
+  $("calMsg").textContent="Saving…";$("calMsg").className="status";
+  SETTINGS.calMap=calMap;
+  const{error}=await sb.from("isrr_issue_settings").upsert({id:1,config:{calMap:SETTINGS.calMap,font:SETTINGS.font,fontSize:SETTINGS.fontSize},updated_at:new Date().toISOString(),updated_by:me.id});
+  if(error){$("calMsg").textContent="Save failed: "+error.message;$("calMsg").className="status err";}
+  else{$("calMsg").textContent="Saved ✓ — shared to all users";$("calMsg").className="status ok";}
+}
+function calResetAll(){calMap={};calRender();$("calMsg").textContent="Reset to defaults (remember to Save)";$("calMsg").className="status";}
 function calDown(e){const el=e.target.closest("[data-fld]");if(!el)return;e.preventDefault();
   calDrag={fld:el.dataset.fld,sx:e.clientX,sy:e.clientY,start:fieldPos(el.dataset.fld)};
   try{$("calLayer").setPointerCapture(e.pointerId);}catch(_){}}
@@ -459,8 +475,8 @@ function wire(){
   $("listSearch").addEventListener("input",e=>renderList(e.target.value));
   ["is_date","origin","slip_no","issued_by","transport","checker","received_by"].forEach(f=>$(f).addEventListener("input",markDirty));
   $("calClose").onclick=()=>$("calBg").classList.remove("show");$("calSave").onclick=saveCal;$("calTest").onclick=testPrint;$("calReset").onclick=calResetAll;
-  $("calFont").addEventListener("change",()=>{localStorage.setItem("isFont",$("calFont").value);calRender();});
-  $("calSize").addEventListener("change",()=>{localStorage.setItem("isFontSize",$("calSize").value);calRender();});
+  $("calFont").addEventListener("change",()=>{SETTINGS.font=$("calFont").value;calRender();});
+  $("calSize").addEventListener("change",()=>{SETTINGS.fontSize=parseFloat($("calSize").value)||9;calRender();});
   const cl=$("calLayer");cl.addEventListener("pointerdown",calDown);cl.addEventListener("pointermove",calMove);cl.addEventListener("pointerup",calUp);cl.addEventListener("pointercancel",calUp);
   $("loginBtn").onclick=doLogin;$("loginPass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
   window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue="";}});
@@ -468,7 +484,7 @@ function wire(){
 let inited=false;
 async function init(){
   if(inited)return;inited=true;buildRows(MIN_ROWS);setStatus("Loading…");
-  await loadCatalogs();await loadList();
+  await loadSettings();await loadCatalogs();await loadList();
   if(slips.length){idx=0;await loadCurrent();setStatus("Ready ✓","ok");}else{newRecord();}
 }
 (async function(){
