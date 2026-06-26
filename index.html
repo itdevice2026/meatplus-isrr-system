@@ -142,6 +142,10 @@
   #printArea .pr-sign .s{flex:1;}
   #printArea .pr-sign .s label{font-weight:bold;display:block;margin-bottom:6px;font-size:12px;}
   #printArea .pr-sign .s .bx{text-align:center;min-height:26px;}
+  /* duplicate copies: keep each whole; both fit one page if possible, else 2nd flows to next page */
+  #printArea .pr-copy{break-inside:avoid;page-break-inside:avoid;}
+  #printArea .pr-cut{border-top:1px dashed #999;margin:18px 0;}
+  @media print{ #printArea .pr-cut{margin:14px 0;} }
 </style>
 </head>
 <body>
@@ -703,7 +707,7 @@ function buildPrintArea(){
   for(let i=0;i<totalRows;i++){const r=filled[i]||{};
     body+=`<tr><td class="l">${esc(r.it||"")}</td><td class="l">${esc(r.brand||"")}</td><td>${esc(r.boxes||"")}</td><td>${esc(r.net||"")}</td><td>${esc(r.pd||"")}</td><td>${esc(r.ed||"")}</td><td class="l">${esc(r.rem||"")}</td></tr>`;}
   const code=(b,label,val)=>`<div class="row"><b>${label}</b><div class="bx">${esc(val||"")}</div></div>`;
-  $("printArea").innerHTML=`
+  const copy=`
     <div class="pr-top">
       <div class="pr-logo"><div class="sq"></div><div class="mk">MEATPLUS</div><div class="sb">TRADING CORPORATION</div></div>
       <div class="pr-title">RECEIVING REPORT</div>
@@ -740,6 +744,8 @@ function buildPrintArea(){
       <div class="s"><label>NOTED BY</label><div class="bx">${esc($("noted_by").value||"")}</div></div>
       <div class="s"><label>VERIFIED BY</label><div class="bx">${esc($("verified_by").value||"")}</div></div>
     </div>`;
+  // Two copies: both on one page if they fit, otherwise the 2nd flows to the next page.
+  $("printArea").innerHTML=`<div class="pr-copy">${copy}</div><div class="pr-cut"></div><div class="pr-copy">${copy}</div>`;
 }
 function printForm(){ buildPrintArea(); window.print(); }
 
