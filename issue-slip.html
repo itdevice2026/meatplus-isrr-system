@@ -369,7 +369,7 @@ function effPos(m){
 }
 function dispDate(iso){if(!iso)return"";const M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];const[y,m,d]=iso.split("-");return (+d)+"-"+M[+m-1]+"-"+String(y).slice(2);}
 function buildSlipPDF(){
-  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:[FORM.W,FORM.H]});
+  const{jsPDF}=window.jspdf;const doc=new jsPDF({orientation:"landscape",unit:"pt",format:[FORM.W,FORM.H]});
   const P=effPos();const fsz=getFontSize();doc.setFont(getFont(),"normal");doc.setTextColor(0);doc.setFontSize(fsz);
   doc.text($("origin").value||"",P.origin.x,P.origin.y);
   doc.text(dispDate($("is_date").value),P.date.x,P.date.y);
@@ -390,7 +390,7 @@ function buildSlipPDF(){
 }
 function printSlip(){const doc=buildSlipPDF();const w=window.open(doc.output("bloburl"),"_blank");if(!w)setStatus("Allow pop-ups to open the print view","err");}
 function testPrint(){
-  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:[FORM.W,FORM.H]});
+  const{jsPDF}=window.jspdf;const doc=new jsPDF({orientation:"landscape",unit:"pt",format:[FORM.W,FORM.H]});
   const P=effPos();doc.setDrawColor(180);doc.setLineWidth(0.5);
   doc.rect(27.5,P.rowTop,576.7-27.5,P.rowH*P.maxRows);
   [201.9,366.8,431.3,496.7].forEach(x=>doc.line(x,P.rowTop,x,P.rowTop+P.rowH*P.maxRows));
