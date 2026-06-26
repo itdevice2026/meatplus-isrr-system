@@ -352,6 +352,13 @@ function makeRow(){
     else { tr.querySelectorAll("input").forEach(x=>x.value=""); }  // keep the base rows, just clear
     rowCount=allRows().length; markDirty(); recalc();
   });
+  // when an Item is chosen, auto-fill its Brand (if Brand is still empty)
+  tr.querySelector('input[data-f="item"]').addEventListener("change",()=>{
+    if(!canEdit())return;
+    const b=itemBrandMap[(cell(tr,"item").value||"").trim().toLowerCase()];
+    const bc=cell(tr,"brand");
+    if(b && !bc.value.trim()){ bc.value=b; markDirty(); }
+  });
   return tr;
 }
 function buildRows(n){
@@ -626,20 +633,28 @@ function fillDatalist(id,arr){
   if(!dl){dl=document.createElement("datalist");dl.id=id;document.body.appendChild(dl);}
   dl.innerHTML=arr.map(v=>`<option value="${esc(v)}">`).join("");
 }
+let itemBrandMap={};   // item name (lowercase) -> typical brand
 async function loadCatalogs(){
   const[{data:it},{data:br}]=await Promise.all([
-    sb.from("isrr_item_master").select("name").order("name"),
+    sb.from("isrr_item_master").select("name,brand").order("name"),
     sb.from("isrr_brand_master").select("name").order("name"),
   ]);
+  itemBrandMap={};
+  (it||[]).forEach(r=>{if(r.brand)itemBrandMap[(r.name||"").toLowerCase()]=r.brand;});
   fillDatalist("itemlist",(it||[]).map(r=>r.name));
   fillDatalist("brandlist",(br||[]).map(r=>r.name));
 }
 async function syncCatalogs(items){
-  const itemNames=[...new Set(items.map(i=>i.item).filter(Boolean))];
   const brandNames=[...new Set(items.map(i=>i.brand).filter(Boolean))];
+  // latest brand seen per item in this save
+  const map={};
+  items.forEach(i=>{if(i.item){if(i.brand)map[i.item]=i.brand;else if(!(i.item in map))map[i.item]=null;}});
+  const withBrand=Object.entries(map).filter(([,b])=>b).map(([name,brand])=>({name,brand}));
+  const noBrand=Object.entries(map).filter(([,b])=>!b).map(([name])=>({name}));
   const tasks=[];
-  if(itemNames.length) tasks.push(sb.from("isrr_item_master").upsert(itemNames.map(name=>({name})),{onConflict:"name",ignoreDuplicates:true}));
-  if(brandNames.length) tasks.push(sb.from("isrr_brand_master").upsert(brandNames.map(name=>({name})),{onConflict:"name",ignoreDuplicates:true}));
+  if(withBrand.length) tasks.push(sb.from("isrr_item_master").upsert(withBrand,{onConflict:"name"}));                       // updates the item's brand
+  if(noBrand.length)   tasks.push(sb.from("isrr_item_master").upsert(noBrand,{onConflict:"name",ignoreDuplicates:true}));   // add new item, keep existing brand
+  if(brandNames.length)tasks.push(sb.from("isrr_brand_master").upsert(brandNames.map(name=>({name})),{onConflict:"name",ignoreDuplicates:true}));
   if(tasks.length){try{await Promise.all(tasks);await loadCatalogs();}catch(e){/* non-fatal */}}
 }
 
