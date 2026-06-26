@@ -483,52 +483,32 @@ async function addUser(){
   catch(e){flash("Error: "+e.message,true);}
 }
 
-// ---------- PDF (two identical copies stacked per page) ----------
+// ---------- PDF (single full-page copy) ----------
 function generatePDF(){
   const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"a4"});
-  const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),half=H/2;
-  const c={W,half,
-    supName:$("supplier").selectedOptions[0]?.text||"", stoName:$("storage").selectedOptions[0]?.text||"",
-    ttype:document.querySelector('input[name="ttype"]:checked')?.value||"",
-    rrcode:$("rrcode").value,date:$("rr_date").value,cv:$("cv_no").value,po:$("po_no").value,number:$("number").value,
-    totBoxes:$("totBoxes").value,totWeight:$("totWeight").value,note:$("note").value.trim(),
-    checked:$("checked_by").value,prepared:$("prepared_by").value,noted:$("noted_by").value,verified:$("verified_by").value,
-    items:[]};
-  for(let i=0;i<ROWS;i++){const it=rowInput(i,"item").value.trim();if(!it)continue;
-    c.items.push([it,rowInput(i,"brand").value,rowInput(i,"number_of_boxes").value,rowInput(i,"net_weight").value,rowInput(i,"pd").value,rowInput(i,"ed").value,rowInput(i,"remarks").value]);}
-  renderCopy(doc,c,0);
-  // cut line between the two copies
-  doc.setLineDashPattern([4,3],0);doc.setDrawColor(160);doc.line(24,half,W-24,half);doc.setLineDashPattern([],0);doc.setDrawColor(0);
-  renderCopy(doc,c,half);
-  doc.save((c.rrcode||"receiving-report")+".pdf");
-}
-function renderCopy(doc,c,yTop){
-  const W=c.W,L=40,R=W-40;
-  doc.setFontSize(14);doc.setTextColor(232,17,45);doc.setFont(undefined,"bold");
-  doc.text("MEATPLUS TRADING CORPORATION",W/2,yTop+26,{align:"center"});
-  doc.setFontSize(10);doc.setTextColor(40);doc.text("RECEIVING REPORT",W/2,yTop+42,{align:"center"});
-  doc.setFontSize(8.5);doc.setFont(undefined,"normal");
-  let y=yTop+62;
-  const line=(label,val,label2,val2)=>{doc.setFont(undefined,"bold");doc.text(label,L,y);doc.setFont(undefined,"normal");doc.text(String(val||""),L+58,y);
-    if(label2){doc.setFont(undefined,"bold");doc.text(label2,330,y);doc.setFont(undefined,"normal");doc.text(String(val2||""),330+58,y);}y+=13;};
-  line("RRCODE:",c.rrcode,"DATE:",c.date);
-  line("Supplier:",c.supName,"CV NO:",c.cv);
-  line("Storage:",c.stoName,"PO NO:",c.po);
-  line("Type:",c.ttype,"NUMBER:",c.number);
-  doc.autoTable({startY:y+4,margin:{left:L,right:L},tableWidth:R-L,
-    head:[["ITEM","BRAND","BOXES","NET WT","PD","ED","REMARKS"]],body:c.items,
-    styles:{fontSize:7.5,cellPadding:2,overflow:"linebreak"},headStyles:{fillColor:[232,17,45],halign:"center",fontSize:7.5},
+  const W=doc.internal.pageSize.getWidth();const supName=$("supplier").selectedOptions[0]?.text||"";const stoName=$("storage").selectedOptions[0]?.text||"";
+  doc.setFontSize(18);doc.setTextColor(232,17,45);doc.setFont(undefined,"bold");doc.text("MEATPLUS TRADING CORPORATION",W/2,40,{align:"center"});
+  doc.setFontSize(13);doc.setTextColor(40);doc.text("RECEIVING REPORT",W/2,60,{align:"center"});
+  doc.setFontSize(10);doc.setFont(undefined,"normal");
+  const L=40,R=W-40;let y=86;
+  const line=(lx,label,val,rx,label2,val2)=>{doc.setFont(undefined,"bold");doc.text(label,lx,y);doc.setFont(undefined,"normal");doc.text(String(val||""),lx+70,y);
+    if(label2){doc.setFont(undefined,"bold");doc.text(label2,rx,y);doc.setFont(undefined,"normal");doc.text(String(val2||""),rx+70,y);}y+=16;};
+  line(L,"RRCODE:",$("rrcode").value,330,"DATE:",$("rr_date").value);
+  line(L,"Supplier:",supName,330,"CV NO:",$("cv_no").value);
+  line(L,"Storage:",stoName,330,"PO NO:",$("po_no").value);
+  line(L,"Type:",document.querySelector('input[name="ttype"]:checked')?.value||"",330,"NUMBER:",$("number").value);
+  const body=[];for(let i=0;i<ROWS;i++){const it=rowInput(i,"item").value.trim();if(!it)continue;
+    body.push([it,rowInput(i,"brand").value,rowInput(i,"number_of_boxes").value,rowInput(i,"net_weight").value,rowInput(i,"pd").value,rowInput(i,"ed").value,rowInput(i,"remarks").value]);}
+  doc.autoTable({startY:y+6,head:[["ITEM","BRAND","BOXES","NET WT","PD","ED","REMARKS"]],body,
+    styles:{fontSize:9,cellPadding:3},headStyles:{fillColor:[232,17,45],halign:"center"},
     columnStyles:{2:{halign:"right"},3:{halign:"right"}},theme:"grid"});
-  let yy=doc.lastAutoTable.finalY+12;
-  doc.setFontSize(9);doc.setFont(undefined,"bold");
-  doc.text("TOTAL BOXES: "+c.totBoxes,L,yy);doc.text("TOTAL NET WEIGHT: "+c.totWeight,330,yy);
-  yy+=13;doc.setFont(undefined,"normal");doc.setFontSize(8.5);
-  if(c.note){doc.text(doc.splitTextToSize("NOTE: "+c.note,R-L),L,yy);}
-  // signatures fixed near the bottom of this copy's band
-  const sy=yTop+c.half-34,cw=(R-L)/4;
-  const sig=[["CHECKED BY",c.checked],["PREPARED BY",c.prepared],["NOTED BY",c.noted],["VERIFIED BY",c.verified]];
-  sig.forEach((s,i)=>{const x=L+cw*i;doc.setFont(undefined,"normal");doc.setFontSize(9);doc.text(s[1]||"",x+cw/2,sy,{align:"center"});
-    doc.line(x+8,sy+3,x+cw-8,sy+3);doc.setFont(undefined,"bold");doc.setFontSize(8);doc.text(s[0],x+cw/2,sy+14,{align:"center"});});
+  let y2=doc.lastAutoTable.finalY+16;
+  doc.setFont(undefined,"bold");doc.text("TOTAL BOXES: "+$("totBoxes").value,L,y2);doc.text("TOTAL NET WEIGHT: "+$("totWeight").value,330,y2);
+  y2+=18;doc.setFont(undefined,"normal");const note=$("note").value.trim();
+  if(note){doc.text(doc.splitTextToSize("NOTE: "+note,R-L),L,y2);y2+=28;}
+  y2+=30;const cw=(R-L)/4;const sig=[["CHECKED BY",$("checked_by").value],["PREPARED BY",$("prepared_by").value],["NOTED BY",$("noted_by").value],["VERIFIED BY",$("verified_by").value]];
+  sig.forEach((s,i)=>{const x=L+cw*i;doc.text(s[1]||"",x+cw/2,y2,{align:"center"});doc.line(x+10,y2+4,x+cw-10,y2+4);doc.setFont(undefined,"bold");doc.setFontSize(9);doc.text(s[0],x+cw/2,y2+16,{align:"center"});doc.setFont(undefined,"normal");doc.setFontSize(10);});
+  doc.save(($("rrcode").value||"receiving-report")+".pdf");
 }
 
 // ---------- WIRE ----------
