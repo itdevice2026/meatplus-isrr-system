@@ -161,13 +161,18 @@
   </div>
 </div>
 
-<!-- CALIBRATION MODAL -->
-<div class="modal-bg" id="calBg"><div class="modal">
+<!-- CALIBRATION MODAL (drag to align) -->
+<div class="modal-bg" id="calBg"><div class="modal" style="width:680px;max-width:96vw">
   <h3>Print Calibration</h3>
-  <p>Nudge the printed data to line up with your pre-printed slip. Positive X moves right, positive Y moves down (points; 1pt ≈ 0.35mm).</p>
-  <div class="two">
+  <p>Drag the blue data so it sits in the blank spaces of the form, then Save. (You can also fine-tune with the X/Y boxes.) This sets where data prints on your pre-printed slips.</p>
+  <div id="calStage" style="position:relative;width:100%;border:1px solid #ccc;border-radius:4px;overflow:hidden;background:#fff;user-select:none;touch-action:none">
+    <img id="calImg" src="issue-slip-form.png" style="display:block;width:100%" draggable="false" />
+    <div id="calLayer" style="position:absolute;inset:0;cursor:grab;"></div>
+  </div>
+  <div class="two" style="margin-top:12px;align-items:flex-end">
     <div style="flex:1"><label>Offset X (pt)</label><input type="number" id="calX" step="1" /></div>
     <div style="flex:1"><label>Offset Y (pt)</label><input type="number" id="calY" step="1" /></div>
+    <button class="cancel" id="calReset" style="height:38px">Reset</button>
   </div>
   <div class="row"><span class="status" id="calMsg" style="margin-right:auto"></span>
     <button class="cancel" id="calTest">Test print</button>
@@ -389,9 +394,32 @@ function testPrint(){
   const w=window.open(doc.output("bloburl"),"_blank");if(!w)setStatus("Allow pop-ups","err");
 }
 
-// ---- calibration modal ----
-function openCal(){const o=calOffset();$("calX").value=o.x;$("calY").value=o.y;$("calMsg").textContent="";$("calBg").classList.add("show");}
-function saveCal(){localStorage.setItem("isCalX",$("calX").value||"0");localStorage.setItem("isCalY",$("calY").value||"0");$("calMsg").textContent="Saved ✓";$("calMsg").className="status ok";}
+// ---- calibration modal (visual drag) ----
+let calX=0,calY=0,calScale=1,calDrag=null;
+function calSampleData(){
+  const rows=[];allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(it)rows.push({it,brand:cell(tr,"brand").value,boxes:cell(tr,"number_of_boxes").value,net:cell(tr,"net_weight").value,act:cell(tr,"actual_weight").value});});
+  if(!rows.length)rows.push({it:"SAMPLE ITEM",brand:"BRAND",boxes:"10",net:"100",act:"101"});
+  return{date:dispDate($("is_date").value)||"01-Jan-26",origin:$("origin").value||"SAMPLE ORIGIN",rows:rows.slice(0,POS.maxRows),
+    issued:$("issued_by").value||"ISSUED",transport:$("transport").value||"TRANSPORT",checker:$("checker").value||"CHECKER",received:$("received_by").value||"RECEIVED"};
+}
+function calRender(){
+  calScale=$("calImg").clientWidth/FORM.W;
+  const d=calSampleData();
+  const span=(xpt,ypt,txt,center)=>{if(!txt&&txt!==0)return"";const fs=9*calScale;
+    return `<span style="position:absolute;left:${xpt*calScale}px;top:${ypt*calScale-fs}px;font-size:${fs}px;color:#0a3d91;font-weight:600;font-family:Arial;white-space:nowrap;line-height:1;${center?'transform:translateX(-50%)':''}">${esc(String(txt))}</span>`;};
+  let h=span(POS.date.x,POS.date.y,d.date)+span(POS.origin.x,POS.origin.y,d.origin);
+  d.rows.forEach((r,i)=>{const y=POS.rowTop+i*POS.rowH+POS.baseOff;
+    h+=span(POS.col.item,y,r.it)+span(POS.col.brand,y,r.brand)+span(POS.col.boxes,y,r.boxes,true)+span(POS.col.net,y,r.net,true)+span(POS.col.actual,y,r.act,true);});
+  h+=span(POS.sign.issued_by.x,POS.sign.y,d.issued)+span(POS.sign.transport.x,POS.sign.y,d.transport)+span(POS.sign.checker.x,POS.sign.y,d.checker)+span(POS.sign.received_by.x,POS.sign.y,d.received);
+  $("calLayer").innerHTML=h;calTransform();
+}
+function calTransform(){$("calLayer").style.transform=`translate(${calX*calScale}px,${calY*calScale}px)`;$("calX").value=Math.round(calX*10)/10;$("calY").value=Math.round(calY*10)/10;}
+function openCal(){const o=calOffset();calX=o.x;calY=o.y;$("calMsg").textContent="";$("calBg").classList.add("show");
+  const img=$("calImg");if(img.complete&&img.clientWidth)calRender();else img.onload=calRender;}
+function saveCal(){localStorage.setItem("isCalX",String(calX));localStorage.setItem("isCalY",String(calY));$("calMsg").textContent="Saved ✓";$("calMsg").className="status ok";}
+function calPointerDown(e){calDrag={sx:e.clientX,sy:e.clientY,ox:calX,oy:calY};$("calLayer").style.cursor="grabbing";try{$("calLayer").setPointerCapture(e.pointerId);}catch(_){}}
+function calPointerMove(e){if(!calDrag)return;calX=calDrag.ox+(e.clientX-calDrag.sx)/calScale;calY=calDrag.oy+(e.clientY-calDrag.sy)/calScale;calTransform();}
+function calPointerUp(){if(calDrag){calDrag=null;$("calLayer").style.cursor="grab";}}
 
 // ---- wire ----
 function wire(){
@@ -407,6 +435,10 @@ function wire(){
   $("listSearch").addEventListener("input",e=>renderList(e.target.value));
   ["is_date","origin","slip_no","issued_by","transport","checker","received_by"].forEach(f=>$(f).addEventListener("input",markDirty));
   $("calClose").onclick=()=>$("calBg").classList.remove("show");$("calSave").onclick=saveCal;$("calTest").onclick=testPrint;
+  $("calReset").onclick=()=>{calX=0;calY=0;calTransform();};
+  $("calX").addEventListener("input",()=>{calX=parseFloat($("calX").value)||0;$("calLayer").style.transform=`translate(${calX*calScale}px,${calY*calScale}px)`;});
+  $("calY").addEventListener("input",()=>{calY=parseFloat($("calY").value)||0;$("calLayer").style.transform=`translate(${calX*calScale}px,${calY*calScale}px)`;});
+  const cl=$("calLayer");cl.addEventListener("pointerdown",calPointerDown);cl.addEventListener("pointermove",calPointerMove);cl.addEventListener("pointerup",calPointerUp);cl.addEventListener("pointercancel",calPointerUp);
   $("loginBtn").onclick=doLogin;$("loginPass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
   window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue="";}});
 }
