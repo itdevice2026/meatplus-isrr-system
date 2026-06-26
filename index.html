@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{ --red:#e8112d; --green:#2faa3f; --salmon:#f2a59d; --gray-btn:#8b8b8b; --line:#cfcfcf; }
   *{box-sizing:border-box;}
@@ -130,6 +131,7 @@
     <button class="tbtn back" id="btnList">Records List</button>
     <button class="tbtn undo" id="btnUndo">Undo Record</button>
     <button class="tbtn pdf"  id="btnPdf">Export PDF</button>
+    <button class="tbtn" id="btnImport" style="background:#0b8457">Import Excel</button>
     <button class="tbtn users" id="btnUsers" style="display:none">Users</button>
     <div class="spacer"></div>
     <button class="tbtn icon" id="btnPrint" title="Print">🖨</button>
@@ -241,6 +243,23 @@
   </div>
 </div></div>
 
+<!-- IMPORT EXCEL MODAL -->
+<div class="modal-bg" id="importBg"><div class="modal">
+  <h3>Import from Excel</h3>
+  <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px">Import into</label>
+  <select id="impTarget">
+    <option value="isrr_suppliers">Suppliers</option>
+    <option value="isrr_storages">Storage</option>
+  </select>
+  <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px">Excel / CSV file</label>
+  <input type="file" id="impFile" accept=".xlsx,.xls,.csv" />
+  <p style="font-size:12px;color:#777;margin:0 0 14px">Put the names in the <b>first column</b>. A header row like "Name" is skipped automatically, and duplicates are ignored.</p>
+  <div class="row"><span class="status" id="impMsg" style="margin-right:auto"></span>
+    <button class="cancel" id="impTemplate">Download template</button>
+    <button class="cancel" id="importClose">Close</button>
+    <button class="ok" id="impRun">Import</button></div>
+</div></div>
+
 <script>
 const SUPABASE_URL = "https://emkcwukiqxnvcbhkjiqz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_u_qnmEI8oHI9Z_A0-Hht3Q_Yvaa7Ork";
@@ -290,7 +309,7 @@ async function doLogout(){
 }
 function applyRole(){
   const ed=canEdit();
-  ["btnAdd","btnSave","btnDelete","btnAddRow"].forEach(b=>$(b).disabled=!ed);
+  ["btnAdd","btnSave","btnDelete","btnAddRow","btnImport"].forEach(b=>$(b).disabled=!ed);
   document.querySelectorAll("#formView input, #formView select, #formView textarea, .miniadd")
     .forEach(el=>{ if(el.id==="seq_no"||el.id==="totBoxes"||el.id==="totWeight")return;
       el.disabled = !ed; });
@@ -502,6 +521,42 @@ async function addUser(){
   catch(e){flash("Error: "+e.message,true);}
 }
 
+// ---------- IMPORT SUPPLIERS / STORAGE FROM EXCEL ----------
+const impMsg=(m,err)=>{const e=$("impMsg");e.textContent=m;e.className="status "+(err?"err":"ok");};
+function openImport(){if(!canEdit())return;$("impMsg").textContent="";$("impFile").value="";$("importBg").classList.add("show");}
+function importTemplate(){
+  const t=$("impTarget").value;
+  const head=t==="isrr_suppliers"?"Supplier Name":"Storage Name";
+  const ex=t==="isrr_suppliers"?["MTC PRODUCTION (MSL)","ABC Foods Inc."]:["One Stop Warehousing Solutions, Inc.","Main Cold Storage"];
+  const ws=XLSX.utils.aoa_to_sheet([[head],...ex.map(e=>[e])]);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Template");
+  XLSX.writeFile(wb,(t==="isrr_suppliers"?"suppliers":"storage")+"-template.xlsx");
+}
+async function doImport(){
+  if(!canEdit())return;
+  const target=$("impTarget").value,file=$("impFile").files[0];
+  if(!file){impMsg("Please choose a file",true);return;}
+  impMsg("Reading file…");
+  try{
+    const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false});
+    let names=rows.map(r=>(r&&r[0]!=null)?String(r[0]).trim():"").filter(Boolean);
+    if(names.length && /^(name|supplier|storage|supplier name|storage name)$/i.test(names[0])) names.shift();
+    const seen=new Set(),uniq=[];
+    names.forEach(n=>{const k=n.toLowerCase();if(!seen.has(k)){seen.add(k);uniq.push(n);}});
+    if(!uniq.length){impMsg("No names found in the first column",true);return;}
+    const{data:ex}=await sb.from(target).select("name");
+    const have=new Set((ex||[]).map(r=>(r.name||"").toLowerCase()));
+    const toAdd=uniq.filter(n=>!have.has(n.toLowerCase()));
+    if(!toAdd.length){impMsg("All "+uniq.length+" names already exist — nothing to add",false);return;}
+    const{error}=await sb.from(target).insert(toAdd.map(name=>({name})));
+    if(error)throw error;
+    await loadMasters();
+    impMsg("Imported "+toAdd.length+" new, skipped "+(uniq.length-toAdd.length)+" existing.",false);
+  }catch(e){impMsg("Import failed: "+(e.message||e),true);}
+}
+
 // ---------- PDF (single full-page copy) ----------
 function generatePDF(){
   const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"a4"});
@@ -545,6 +600,7 @@ function wire(){
   $("modalCancel").onclick=()=>$("modalBg").classList.remove("show");$("modalOk").onclick=modalSave;
   $("modalInput").addEventListener("keydown",e=>{if(e.key==="Enter")modalSave();});
   $("usersClose").onclick=()=>$("usersBg").classList.remove("show");$("nuAdd").onclick=addUser;
+  $("btnImport").onclick=openImport;$("importClose").onclick=()=>$("importBg").classList.remove("show");$("impRun").onclick=doImport;$("impTemplate").onclick=importTemplate;
   $("listSearch").addEventListener("input",e=>renderList(e.target.value));
   ["supplier","storage","rr_date","cv_no","po_no","rrcode","number","note","checked_by","prepared_by","noted_by","verified_by"].forEach(f=>$(f).addEventListener("input",markDirty));
   document.querySelectorAll('input[name="ttype"]').forEach(r=>r.addEventListener("change",markDirty));
