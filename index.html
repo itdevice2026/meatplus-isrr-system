@@ -243,6 +243,27 @@
   </div>
 </div></div>
 
+<!-- EDIT USER MODAL -->
+<div class="modal-bg" id="editUserBg"><div class="modal">
+  <h3>Edit User</h3>
+  <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px">Full name</label>
+  <input type="text" id="euName" placeholder="Full name" />
+  <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px">Email</label>
+  <input type="email" id="euEmail" placeholder="Email" />
+  <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px">Role</label>
+  <select id="euRole">
+    <option value="encoder">Encoder — create/edit reports</option>
+    <option value="approver">Approver — can verify</option>
+    <option value="viewer">Viewer — read only</option>
+    <option value="admin">Admin — full + users</option>
+  </select>
+  <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px">New password <span style="font-weight:400;color:#999">(leave blank to keep)</span></label>
+  <input type="password" id="euPass" placeholder="••••••••" />
+  <div class="row"><span class="status" id="euMsg" style="margin-right:auto"></span>
+    <button class="cancel" id="euCancel">Cancel</button>
+    <button class="ok" id="euSave">Save changes</button></div>
+</div></div>
+
 <!-- IMPORT EXCEL MODAL -->
 <div class="modal-bg" id="importBg"><div class="modal">
   <h3>Import from Excel</h3>
@@ -521,7 +542,9 @@ async function openUsers(){
 function uInitials(n){return (n||"").toUpperCase().split(/\s+/).filter(Boolean).map(w=>w.replace(/[^A-Z0-9]/g,"")[0]||"").join("").slice(0,3);}
 function fmtDate(d){if(!d)return"—";const x=new Date(d);return isNaN(x)?"—":x.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}
 function fmtDateTime(d){if(!d)return"never";const x=new Date(d);return isNaN(x)?"never":x.toLocaleString(undefined,{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});}
+let usersCache={};
 function renderUsers(users){
+  usersCache={};users.forEach(u=>usersCache[u.id]=u);
   $("usersBody").innerHTML=users.map(u=>{
     const ini=uInitials(u.full_name)||"—";
     const confirmed=u.email_confirmed_at?"":' <span style="color:#c30c24">(unconfirmed)</span>';
@@ -540,24 +563,31 @@ function renderUsers(users){
       Last sign-in: ${fmtDateTime(u.last_sign_in_at)}
     </td>
     <td style="text-align:right;white-space:nowrap">
-      <button class="cancel" data-name="${u.id}" style="padding:5px 8px">Edit name</button>
-      <button class="cancel" data-pw="${u.id}" style="padding:5px 8px">Reset PW</button>
+      <button class="ok" data-edit="${u.id}" style="padding:5px 12px">Edit</button>
       ${u.id!==me.id?`<button class="cancel" data-del="${u.id}" style="padding:5px 8px;color:#c30c24">Delete</button>`:""}
     </td></tr>`;}).join("");
   $("usersBody").querySelectorAll("[data-role]").forEach(s=>s.addEventListener("change",async()=>{
     try{await fnCall("set_role",{id:s.dataset.role,role:s.value});flash("Role updated");}catch(e){flash("Error: "+e.message,true);}
   }));
-  $("usersBody").querySelectorAll("[data-name]").forEach(b=>b.addEventListener("click",async()=>{
-    const nn=prompt("Full name (used for the RRCODE initials):");if(nn===null)return;
-    try{await fnCall("set_name",{id:b.dataset.name,full_name:nn.trim()});flash("Name updated");openUsers();}catch(e){flash("Error: "+e.message,true);}
-  }));
+  $("usersBody").querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",()=>openEditUser(usersCache[b.dataset.edit])));
   $("usersBody").querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async()=>{
     if(!confirm("Delete this user?"))return;try{await fnCall("delete",{id:b.dataset.del});flash("Deleted");openUsers();}catch(e){flash("Error: "+e.message,true);}
   }));
-  $("usersBody").querySelectorAll("[data-pw]").forEach(b=>b.addEventListener("click",async()=>{
-    const np=prompt("New temporary password (min 6 chars):");if(!np)return;
-    try{await fnCall("set_password",{id:b.dataset.pw,password:np});flash("Password reset");}catch(e){flash("Error: "+e.message,true);}
-  }));
+}
+let editingUserId=null;
+function openEditUser(u){
+  if(!u)return;editingUserId=u.id;
+  $("euName").value=u.full_name||"";$("euEmail").value=u.email||"";$("euRole").value=u.role||"encoder";$("euPass").value="";
+  $("euMsg").textContent="";$("editUserBg").classList.add("show");$("euName").focus();
+}
+async function saveEditUser(){
+  if(!editingUserId)return;
+  const payload={id:editingUserId,full_name:$("euName").value.trim(),email:$("euEmail").value.trim(),role:$("euRole").value};
+  const pw=$("euPass").value;if(pw){if(pw.length<6){$("euMsg").textContent="Password must be at least 6 characters";$("euMsg").className="status err";return;}payload.password=pw;}
+  if(!payload.email){$("euMsg").textContent="Email is required";$("euMsg").className="status err";return;}
+  $("euMsg").textContent="Saving…";$("euMsg").className="status";
+  try{await fnCall("update_user",payload);$("editUserBg").classList.remove("show");flash("User updated");openUsers();}
+  catch(e){$("euMsg").textContent="Error: "+e.message;$("euMsg").className="status err";}
 }
 function flash(m,err){const e=$("usersMsg");e.textContent=m;e.className="status "+(err?"err":"ok");setTimeout(()=>{e.textContent="";},2500);}
 async function addUser(){
@@ -646,6 +676,7 @@ function wire(){
   $("modalCancel").onclick=()=>$("modalBg").classList.remove("show");$("modalOk").onclick=modalSave;
   $("modalInput").addEventListener("keydown",e=>{if(e.key==="Enter")modalSave();});
   $("usersClose").onclick=()=>$("usersBg").classList.remove("show");$("nuAdd").onclick=addUser;
+  $("euCancel").onclick=()=>$("editUserBg").classList.remove("show");$("euSave").onclick=saveEditUser;
   $("btnImport").onclick=openImport;$("importClose").onclick=()=>$("importBg").classList.remove("show");$("impRun").onclick=doImport;$("impTemplate").onclick=importTemplate;
   ["checked_by","noted_by"].forEach(f=>$(f).addEventListener("input",()=>{if($(f).value.trim())$(f).style.borderBottom="";}));
   $("listSearch").addEventListener("input",e=>renderList(e.target.value));
