@@ -68,7 +68,7 @@
   .modal h3{margin:0 0 6px;color:var(--red);}
   .modal p{font-size:12.5px;color:#666;margin:0 0 14px;}
   .modal label{font-weight:700;font-size:13px;display:block;margin:8px 0 4px;}
-  .modal input{width:100%;padding:9px;border:1px solid #bbb;border-radius:4px;font-size:14px;}
+  .modal input,.modal select{width:100%;padding:9px;border:1px solid #bbb;border-radius:4px;font-size:14px;background:#fff;}
   .modal .two{display:flex;gap:12px;}
   .modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
   .modal button{border:none;border-radius:5px;padding:9px 16px;font-weight:700;cursor:pointer;}
@@ -164,17 +164,19 @@
 <!-- CALIBRATION MODAL (drag to align) -->
 <div class="modal-bg" id="calBg"><div class="modal" style="width:680px;max-width:96vw">
   <h3>Print Calibration</h3>
-  <p>Drag the blue data so it sits in the blank spaces of the form, then Save. (You can also fine-tune with the X/Y boxes.) This sets where data prints on your pre-printed slips.</p>
+  <p>Drag <b>each</b> highlighted field onto its blank space on the form — date, origin, the first row's five columns (the rows below follow automatically), and each signature. Then Save.</p>
+  <div class="two" style="margin-bottom:10px;align-items:flex-end">
+    <div style="flex:2"><label>Print font</label>
+      <select id="calFont"><option value="helvetica">Helvetica / Arial</option><option value="times">Times (serif)</option><option value="courier">Courier (monospace)</option></select></div>
+    <div style="flex:1"><label>Font size (pt)</label>
+      <select id="calSize"><option>7</option><option>7.5</option><option>8</option><option>8.5</option><option>9</option><option>9.5</option><option>10</option><option>11</option><option>12</option></select></div>
+  </div>
   <div id="calStage" style="position:relative;width:100%;border:1px solid #ccc;border-radius:4px;overflow:hidden;background:#fff;user-select:none;touch-action:none">
     <img id="calImg" src="issue-slip-form.png" style="display:block;width:100%" draggable="false" />
-    <div id="calLayer" style="position:absolute;inset:0;cursor:grab;"></div>
+    <div id="calLayer" style="position:absolute;inset:0;"></div>
   </div>
-  <div class="two" style="margin-top:12px;align-items:flex-end">
-    <div style="flex:1"><label>Offset X (pt)</label><input type="number" id="calX" step="1" /></div>
-    <div style="flex:1"><label>Offset Y (pt)</label><input type="number" id="calY" step="1" /></div>
-    <button class="cancel" id="calReset" style="height:38px">Reset</button>
-  </div>
-  <div class="row"><span class="status" id="calMsg" style="margin-right:auto"></span>
+  <div class="row" style="margin-top:12px"><span class="status" id="calMsg" style="margin-right:auto"></span>
+    <button class="cancel" id="calReset">Reset all</button>
     <button class="cancel" id="calTest">Test print</button>
     <button class="cancel" id="calClose">Close</button>
     <button class="ok" id="calSave">Save</button></div>
@@ -349,77 +351,99 @@ const POS={
   col:{item:30, brand:206, boxes:399, net:464, actual:536},  // boxes/net/actual are centers
   sign:{issued_by:{x:24}, transport:{x:178}, checker:{x:316}, received_by:{x:476}, y:336}
 };
-function calOffset(){return {x:parseFloat(localStorage.getItem("isCalX")||"0")||0, y:parseFloat(localStorage.getItem("isCalY")||"0")||0};}
+function loadCalMap(){try{return JSON.parse(localStorage.getItem("isCalMap")||"{}")||{};}catch(_){return{};}}
+function saveCalMap(m){localStorage.setItem("isCalMap",JSON.stringify(m));}
+function getFont(){return localStorage.getItem("isFont")||"helvetica";}
+function getFontSize(){return parseFloat(localStorage.getItem("isFontSize"))||9;}
+function fontCss(f){return f==="times"?"'Times New Roman',Georgia,serif":f==="courier"?"'Courier New',monospace":"Arial,Helvetica,sans-serif";}
+// effective positions = defaults merged with saved per-field overrides
+function effPos(m){
+  m=m||loadCalMap();
+  const s=k=>(m.sign&&m.sign[k])||{x:POS.sign[k].x,y:POS.sign.y};
+  return {
+    date:m.date||{...POS.date}, origin:m.origin||{...POS.origin},
+    rowTop:(m.rowTop!=null?m.rowTop:POS.rowTop), rowH:POS.rowH, baseOff:POS.baseOff, maxRows:POS.maxRows,
+    col:Object.assign({...POS.col}, m.col||{}),
+    sign:{issued_by:s("issued_by"),transport:s("transport"),checker:s("checker"),received_by:s("received_by")}
+  };
+}
 function dispDate(iso){if(!iso)return"";const M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];const[y,m,d]=iso.split("-");return (+d)+"-"+M[+m-1]+"-"+String(y).slice(2);}
 function buildSlipPDF(){
   const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:[FORM.W,FORM.H]});
-  const o=calOffset();const X=v=>v+o.x, Y=v=>v+o.y;
-  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(0);
-  doc.text($("origin").value||"",X(POS.origin.x),Y(POS.origin.y));
-  doc.text(dispDate($("is_date").value),X(POS.date.x),Y(POS.date.y));
-  // rows
+  const P=effPos();const fsz=getFontSize();doc.setFont(getFont(),"normal");doc.setTextColor(0);doc.setFontSize(fsz);
+  doc.text($("origin").value||"",P.origin.x,P.origin.y);
+  doc.text(dispDate($("is_date").value),P.date.x,P.date.y);
   const items=[];allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(it)items.push({it,brand:cell(tr,"brand").value,boxes:cell(tr,"number_of_boxes").value,net:cell(tr,"net_weight").value,act:cell(tr,"actual_weight").value});});
-  doc.setFontSize(8.5);
-  items.slice(0,POS.maxRows).forEach((r,i)=>{
-    const y=Y(POS.rowTop+i*POS.rowH+POS.baseOff);
-    doc.text(String(r.it||""),X(POS.col.item),y);
-    doc.text(String(r.brand||""),X(POS.col.brand),y);
-    doc.text(String(r.boxes||""),X(POS.col.boxes),y,{align:"center"});
-    doc.text(String(r.net||""),X(POS.col.net),y,{align:"center"});
-    doc.text(String(r.act||""),X(POS.col.actual),y,{align:"center"});
-  });
-  // signatories
-  doc.setFontSize(9);
-  doc.text($("issued_by").value||"",X(POS.sign.issued_by.x),Y(POS.sign.y));
-  doc.text($("transport").value||"",X(POS.sign.transport.x),Y(POS.sign.y));
-  doc.text($("checker").value||"",X(POS.sign.checker.x),Y(POS.sign.y));
-  doc.text($("received_by").value||"",X(POS.sign.received_by.x),Y(POS.sign.y));
+  doc.setFontSize(fsz);
+  items.slice(0,P.maxRows).forEach((r,i)=>{const y=P.rowTop+i*P.rowH+P.baseOff;
+    doc.text(String(r.it||""),P.col.item,y);
+    doc.text(String(r.brand||""),P.col.brand,y);
+    doc.text(String(r.boxes||""),P.col.boxes,y,{align:"center"});
+    doc.text(String(r.net||""),P.col.net,y,{align:"center"});
+    doc.text(String(r.act||""),P.col.actual,y,{align:"center"});});
+  doc.setFontSize(fsz);
+  doc.text($("issued_by").value||"",P.sign.issued_by.x,P.sign.issued_by.y);
+  doc.text($("transport").value||"",P.sign.transport.x,P.sign.transport.y);
+  doc.text($("checker").value||"",P.sign.checker.x,P.sign.checker.y);
+  doc.text($("received_by").value||"",P.sign.received_by.x,P.sign.received_by.y);
   return doc;
 }
-function printSlip(){
-  const doc=buildSlipPDF();
-  const url=doc.output("bloburl");
-  const w=window.open(url,"_blank");
-  if(!w) setStatus("Allow pop-ups to open the print view","err");
-}
+function printSlip(){const doc=buildSlipPDF();const w=window.open(doc.output("bloburl"),"_blank");if(!w)setStatus("Allow pop-ups to open the print view","err");}
 function testPrint(){
-  // draws the form outline so you can dry-run alignment on plain paper
   const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:[FORM.W,FORM.H]});
-  const o=calOffset();const X=v=>v+o.x,Y=v=>v+o.y;
-  doc.setDrawColor(180);doc.setLineWidth(0.5);
-  doc.rect(X(27.5),Y(POS.rowTop),X(576.7)-X(27.5),POS.rowH*POS.maxRows);
-  [201.9,366.8,431.3,496.7].forEach(x=>doc.line(X(x),Y(POS.rowTop),X(x),Y(POS.rowTop+POS.rowH*POS.maxRows)));
-  for(let i=0;i<=POS.maxRows;i++)doc.line(X(27.5),Y(POS.rowTop+i*POS.rowH),X(576.7),Y(POS.rowTop+i*POS.rowH));
-  doc.setTextColor(180);doc.setFontSize(7);doc.text("calibration grid — should match your pre-printed lines",X(30),Y(POS.rowTop-6));
+  const P=effPos();doc.setDrawColor(180);doc.setLineWidth(0.5);
+  doc.rect(27.5,P.rowTop,576.7-27.5,P.rowH*P.maxRows);
+  [201.9,366.8,431.3,496.7].forEach(x=>doc.line(x,P.rowTop,x,P.rowTop+P.rowH*P.maxRows));
+  for(let i=0;i<=P.maxRows;i++)doc.line(27.5,P.rowTop+i*P.rowH,576.7,P.rowTop+i*P.rowH);
+  doc.setTextColor(180);doc.setFontSize(7);doc.text("calibration grid — should match your pre-printed lines",30,P.rowTop-6);
   const w=window.open(doc.output("bloburl"),"_blank");if(!w)setStatus("Allow pop-ups","err");
 }
 
-// ---- calibration modal (visual drag) ----
-let calX=0,calY=0,calScale=1,calDrag=null;
+// ---- calibration modal (drag each field individually) ----
+let calScale=1, calMap={}, calDrag=null;
 function calSampleData(){
   const rows=[];allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(it)rows.push({it,brand:cell(tr,"brand").value,boxes:cell(tr,"number_of_boxes").value,net:cell(tr,"net_weight").value,act:cell(tr,"actual_weight").value});});
   if(!rows.length)rows.push({it:"SAMPLE ITEM",brand:"BRAND",boxes:"10",net:"100",act:"101"});
   return{date:dispDate($("is_date").value)||"01-Jan-26",origin:$("origin").value||"SAMPLE ORIGIN",rows:rows.slice(0,POS.maxRows),
     issued:$("issued_by").value||"ISSUED",transport:$("transport").value||"TRANSPORT",checker:$("checker").value||"CHECKER",received:$("received_by").value||"RECEIVED"};
 }
-function calRender(){
-  calScale=$("calImg").clientWidth/FORM.W;
-  const d=calSampleData();
-  const span=(xpt,ypt,txt,center)=>{if(!txt&&txt!==0)return"";const fs=9*calScale;
-    return `<span style="position:absolute;left:${xpt*calScale}px;top:${ypt*calScale-fs}px;font-size:${fs}px;color:#0a3d91;font-weight:600;font-family:Arial;white-space:nowrap;line-height:1;${center?'transform:translateX(-50%)':''}">${esc(String(txt))}</span>`;};
-  let h=span(POS.date.x,POS.date.y,d.date)+span(POS.origin.x,POS.origin.y,d.origin);
-  d.rows.forEach((r,i)=>{const y=POS.rowTop+i*POS.rowH+POS.baseOff;
-    h+=span(POS.col.item,y,r.it)+span(POS.col.brand,y,r.brand)+span(POS.col.boxes,y,r.boxes,true)+span(POS.col.net,y,r.net,true)+span(POS.col.actual,y,r.act,true);});
-  h+=span(POS.sign.issued_by.x,POS.sign.y,d.issued)+span(POS.sign.transport.x,POS.sign.y,d.transport)+span(POS.sign.checker.x,POS.sign.y,d.checker)+span(POS.sign.received_by.x,POS.sign.y,d.received);
-  $("calLayer").innerHTML=h;calTransform();
+function fieldPos(fld){const P=effPos(calMap);
+  if(fld==="date")return{x:P.date.x,y:P.date.y};
+  if(fld==="origin")return{x:P.origin.x,y:P.origin.y};
+  if(fld.startsWith("col:")){const c=fld.slice(4);return{x:P.col[c],y:P.rowTop+P.baseOff};}
+  if(fld.startsWith("sign:")){const c=fld.slice(5);return{x:P.sign[c].x,y:P.sign[c].y};}
+  return{x:0,y:0};
 }
-function calTransform(){$("calLayer").style.transform=`translate(${calX*calScale}px,${calY*calScale}px)`;$("calX").value=Math.round(calX*10)/10;$("calY").value=Math.round(calY*10)/10;}
-function openCal(){const o=calOffset();calX=o.x;calY=o.y;$("calMsg").textContent="";$("calBg").classList.add("show");
+function setFieldPos(fld,x,y){
+  if(fld==="date")calMap.date={x,y};
+  else if(fld==="origin")calMap.origin={x,y};
+  else if(fld.startsWith("col:")){const c=fld.slice(4);calMap.col=calMap.col||{};calMap.col[c]=x;calMap.rowTop=y-POS.baseOff;}
+  else if(fld.startsWith("sign:")){const c=fld.slice(5);calMap.sign=calMap.sign||{};calMap.sign[c]={x,y};}
+}
+function calRender(){
+  calScale=$("calImg").clientWidth/FORM.W;const sc=calScale;
+  const d=calSampleData();const P=effPos(calMap);
+  const fs=getFontSize()*sc;const ff=fontCss(getFont());
+  const drag=(fld,xpt,ypt,txt,center)=>`<span data-fld="${fld}" title="drag to position" style="position:absolute;left:${xpt*sc}px;top:${ypt*sc-fs}px;font-size:${fs}px;color:#0a3d91;font-weight:700;font-family:${ff};white-space:nowrap;line-height:1;cursor:grab;padding:0 2px;background:rgba(255,224,120,.65);border:1px solid rgba(10,61,145,.5);border-radius:2px;${center?'transform:translateX(-50%)':''}">${esc(String(txt))}</span>`;
+  const plain=(xpt,ypt,txt,center)=>`<span style="position:absolute;left:${xpt*sc}px;top:${ypt*sc-fs}px;font-size:${fs}px;color:#7e93b3;font-family:${ff};white-space:nowrap;line-height:1;${center?'transform:translateX(-50%)':''}">${esc(String(txt))}</span>`;
+  let h=drag("date",P.date.x,P.date.y,d.date)+drag("origin",P.origin.x,P.origin.y,d.origin);
+  d.rows.forEach((r,i)=>{const y=P.rowTop+i*P.rowH+P.baseOff;
+    if(i===0)h+=drag("col:item",P.col.item,y,r.it)+drag("col:brand",P.col.brand,y,r.brand)+drag("col:boxes",P.col.boxes,y,r.boxes,true)+drag("col:net",P.col.net,y,r.net,true)+drag("col:actual",P.col.actual,y,r.act,true);
+    else h+=plain(P.col.item,y,r.it)+plain(P.col.brand,y,r.brand)+plain(P.col.boxes,y,r.boxes,true)+plain(P.col.net,y,r.net,true)+plain(P.col.actual,y,r.act,true);});
+  h+=drag("sign:issued_by",P.sign.issued_by.x,P.sign.issued_by.y,d.issued)+drag("sign:transport",P.sign.transport.x,P.sign.transport.y,d.transport)+drag("sign:checker",P.sign.checker.x,P.sign.checker.y,d.checker)+drag("sign:received_by",P.sign.received_by.x,P.sign.received_by.y,d.received);
+  $("calLayer").innerHTML=h;
+}
+function openCal(){calMap=loadCalMap();$("calMsg").textContent="";$("calFont").value=getFont();$("calSize").value=String(getFontSize());$("calBg").classList.add("show");
   const img=$("calImg");if(img.complete&&img.clientWidth)calRender();else img.onload=calRender;}
-function saveCal(){localStorage.setItem("isCalX",String(calX));localStorage.setItem("isCalY",String(calY));$("calMsg").textContent="Saved ✓";$("calMsg").className="status ok";}
-function calPointerDown(e){calDrag={sx:e.clientX,sy:e.clientY,ox:calX,oy:calY};$("calLayer").style.cursor="grabbing";try{$("calLayer").setPointerCapture(e.pointerId);}catch(_){}}
-function calPointerMove(e){if(!calDrag)return;calX=calDrag.ox+(e.clientX-calDrag.sx)/calScale;calY=calDrag.oy+(e.clientY-calDrag.sy)/calScale;calTransform();}
-function calPointerUp(){if(calDrag){calDrag=null;$("calLayer").style.cursor="grab";}}
+function saveCal(){saveCalMap(calMap);$("calMsg").textContent="Saved ✓ — alignment will apply when you Print Slip";$("calMsg").className="status ok";}
+function calResetAll(){calMap={};calRender();$("calMsg").textContent="Reset to defaults";$("calMsg").className="status";}
+function calDown(e){const el=e.target.closest("[data-fld]");if(!el)return;e.preventDefault();
+  calDrag={fld:el.dataset.fld,sx:e.clientX,sy:e.clientY,start:fieldPos(el.dataset.fld)};
+  try{$("calLayer").setPointerCapture(e.pointerId);}catch(_){}}
+function calMove(e){if(!calDrag)return;
+  const nx=calDrag.start.x+(e.clientX-calDrag.sx)/calScale, ny=calDrag.start.y+(e.clientY-calDrag.sy)/calScale;
+  setFieldPos(calDrag.fld,nx,ny);calRender();}
+function calUp(){calDrag=null;}
 
 // ---- wire ----
 function wire(){
@@ -434,11 +458,10 @@ function wire(){
   $("navLast").onclick=async()=>{idx=slips.length-1;await loadCurrent();};
   $("listSearch").addEventListener("input",e=>renderList(e.target.value));
   ["is_date","origin","slip_no","issued_by","transport","checker","received_by"].forEach(f=>$(f).addEventListener("input",markDirty));
-  $("calClose").onclick=()=>$("calBg").classList.remove("show");$("calSave").onclick=saveCal;$("calTest").onclick=testPrint;
-  $("calReset").onclick=()=>{calX=0;calY=0;calTransform();};
-  $("calX").addEventListener("input",()=>{calX=parseFloat($("calX").value)||0;$("calLayer").style.transform=`translate(${calX*calScale}px,${calY*calScale}px)`;});
-  $("calY").addEventListener("input",()=>{calY=parseFloat($("calY").value)||0;$("calLayer").style.transform=`translate(${calX*calScale}px,${calY*calScale}px)`;});
-  const cl=$("calLayer");cl.addEventListener("pointerdown",calPointerDown);cl.addEventListener("pointermove",calPointerMove);cl.addEventListener("pointerup",calPointerUp);cl.addEventListener("pointercancel",calPointerUp);
+  $("calClose").onclick=()=>$("calBg").classList.remove("show");$("calSave").onclick=saveCal;$("calTest").onclick=testPrint;$("calReset").onclick=calResetAll;
+  $("calFont").addEventListener("change",()=>{localStorage.setItem("isFont",$("calFont").value);calRender();});
+  $("calSize").addEventListener("change",()=>{localStorage.setItem("isFontSize",$("calSize").value);calRender();});
+  const cl=$("calLayer");cl.addEventListener("pointerdown",calDown);cl.addEventListener("pointermove",calMove);cl.addEventListener("pointerup",calUp);cl.addEventListener("pointercancel",calUp);
   $("loginBtn").onclick=doLogin;$("loginPass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
   window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue="";}});
 }
