@@ -698,7 +698,7 @@ function buildPrintArea(){
   // rows
   const filled=[];
   allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(it)filled.push({it,brand:cell(tr,"brand").value,boxes:cell(tr,"number_of_boxes").value,net:cell(tr,"net_weight").value,pd:cell(tr,"pd").value,ed:cell(tr,"ed").value,rem:cell(tr,"remarks").value});});
-  const totalRows=Math.max(12,filled.length);
+  const totalRows=Math.max(filled.length,1);   // rows reflect the number of items encoded
   let body="";
   for(let i=0;i<totalRows;i++){const r=filled[i]||{};
     body+=`<tr><td class="l">${esc(r.it||"")}</td><td class="l">${esc(r.brand||"")}</td><td>${esc(r.boxes||"")}</td><td>${esc(r.net||"")}</td><td>${esc(r.pd||"")}</td><td>${esc(r.ed||"")}</td><td class="l">${esc(r.rem||"")}</td></tr>`;}
