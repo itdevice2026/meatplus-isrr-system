@@ -335,7 +335,7 @@ function makeRow(){
   const tr=document.createElement("tr");
   tr.innerHTML=`
     <td class="l"><input data-f="item" list="itemlist"></td>
-    <td class="l"><input data-f="brand"></td>
+    <td class="l"><input data-f="brand" list="brandlist"></td>
     <td><input data-f="number_of_boxes" inputmode="decimal"></td>
     <td><input data-f="net_weight" inputmode="decimal"></td>
     <td><input data-f="pd" placeholder="dd-Mmm-yy"></td>
@@ -433,6 +433,7 @@ async function saveRecord(){
     else{if(!h.prepared_by)h.prepared_by=me.name||me.email||null;const{data,error}=await sb.from("isrr_reports").insert(h).select("id").single();if(error)throw error;id=data.id;}
     await sb.from("isrr_items").delete().eq("report_id",id);
     if(items.length){const{error:ie}=await sb.from("isrr_items").insert(items.map(it=>({...it,report_id:id})));if(ie)throw ie;}
+    await syncCatalogs(items);   // auto-add new Item/Brand to master lists
     await loadList();idx=reports.findIndex(r=>r.id===id);await loadCurrent();setStatus("Saved ✓","ok");
   }catch(e){setStatus("Save failed: "+(e.message||e),"err");}
 }
@@ -615,10 +616,31 @@ async function init(){
   buildRows();
   setStatus("Loading…");
   await loadMasters();await loadList();
+  await loadCatalogs();
   if(reports.length){idx=0;await loadCurrent();setStatus("Ready ✓","ok");}else{newRecord();}
-  const{data}=await sb.from("isrr_items").select("item").limit(1000);
-  const uniq=[...new Set((data||[]).map(d=>d.item).filter(Boolean))];
-  const dl=document.createElement("datalist");dl.id="itemlist";dl.innerHTML=uniq.map(i=>`<option value="${esc(i)}">`).join("");document.body.appendChild(dl);
+}
+
+// Item / Brand master lists (auto-built database for autocomplete)
+function fillDatalist(id,arr){
+  let dl=document.getElementById(id);
+  if(!dl){dl=document.createElement("datalist");dl.id=id;document.body.appendChild(dl);}
+  dl.innerHTML=arr.map(v=>`<option value="${esc(v)}">`).join("");
+}
+async function loadCatalogs(){
+  const[{data:it},{data:br}]=await Promise.all([
+    sb.from("isrr_item_master").select("name").order("name"),
+    sb.from("isrr_brand_master").select("name").order("name"),
+  ]);
+  fillDatalist("itemlist",(it||[]).map(r=>r.name));
+  fillDatalist("brandlist",(br||[]).map(r=>r.name));
+}
+async function syncCatalogs(items){
+  const itemNames=[...new Set(items.map(i=>i.item).filter(Boolean))];
+  const brandNames=[...new Set(items.map(i=>i.brand).filter(Boolean))];
+  const tasks=[];
+  if(itemNames.length) tasks.push(sb.from("isrr_item_master").upsert(itemNames.map(name=>({name})),{onConflict:"name",ignoreDuplicates:true}));
+  if(brandNames.length) tasks.push(sb.from("isrr_brand_master").upsert(brandNames.map(name=>({name})),{onConflict:"name",ignoreDuplicates:true}));
+  if(tasks.length){try{await Promise.all(tasks);await loadCatalogs();}catch(e){/* non-fatal */}}
 }
 
 (async function start(){
