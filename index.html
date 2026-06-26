@@ -230,7 +230,7 @@
     <b style="font-size:13px">Add new user</b>
     <input type="text" id="nuName" placeholder="Full name" />
     <input type="email" id="nuEmail" placeholder="Email" />
-    <input type="password" id="nuPass" placeholder="Temp password (min 6 chars)" />
+    <input type="password" id="nuPass" placeholder="Temp password (min 6) — blank if they already have a login" />
     <select id="nuRole">
       <option value="encoder">Encoder — create/edit reports</option>
       <option value="approver">Approver — can verify</option>
@@ -592,9 +592,16 @@ async function saveEditUser(){
 function flash(m,err){const e=$("usersMsg");e.textContent=m;e.className="status "+(err?"err":"ok");setTimeout(()=>{e.textContent="";},2500);}
 async function addUser(){
   const full_name=$("nuName").value.trim(),email=$("nuEmail").value.trim(),password=$("nuPass").value,role=$("nuRole").value;
-  if(!email||password.length<6){flash("Email + 6-char password required",true);return;}
-  try{await fnCall("create",{email,password,full_name,role});$("nuName").value="";$("nuEmail").value="";$("nuPass").value="";flash("User created");openUsers();}
-  catch(e){flash("Error: "+e.message,true);}
+  if(!email){flash("Email is required",true);return;}
+  if(password && password.length<6){flash("Password must be at least 6 characters",true);return;}
+  try{
+    const r=await fnCall("create",{email,password,full_name,role});
+    $("nuName").value="";$("nuEmail").value="";$("nuPass").value="";
+    if(r.linked) flash("Existing account linked to IS-RR — they sign in with their current password");
+    else if(!password) flash("User added. Set a password via Edit so they can sign in.");
+    else flash("User created");
+    openUsers();
+  }catch(e){flash("Error: "+e.message,true);}
 }
 
 // ---------- IMPORT SUPPLIERS / STORAGE FROM EXCEL ----------
