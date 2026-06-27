@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<title>MEATPLUS Inventory</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{ --red:#e8112d; --green:#2faa3f; --line:#cfcfcf; }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:#d9d9d9;color:#222;}
+  .app{max-width:1180px;margin:14px auto;background:#fff;border:1px solid #999;box-shadow:0 4px 18px rgba(0,0,0,.25);}
+  .winbar{display:flex;align-items:center;gap:8px;background:#f1f1f1;border-bottom:1px solid #ccc;padding:6px 10px;font-weight:600;color:#333;font-size:13px;}
+  .winbar .who{margin-left:auto;font-weight:600;color:#555;font-size:12px;}
+  .winbar .who b{color:var(--red);}
+  .toolbar{background:var(--red);display:flex;align-items:center;gap:10px;padding:12px 14px;flex-wrap:wrap;}
+  .tbtn{border:none;border-radius:6px;padding:11px 16px;font-weight:700;font-size:14px;cursor:pointer;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.15);}
+  .tbtn.refresh{background:#3b6fd4;} .tbtn.back{background:#444;} .tbtn.icon{background:#f2a59d;padding:11px 13px;} .toolbar .spacer{flex:1;}
+  .sheet{padding:16px 22px 26px;}
+  .topbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+  .topbar h2{margin:0;color:var(--red);font-size:18px;}
+  .topbar input{flex:1;min-width:200px;border:1px solid #bbb;border-radius:4px;padding:8px 11px;font-size:14px;}
+  .pill{font-size:12px;font-weight:700;padding:3px 10px;border-radius:10px;background:#eee;color:#444;}
+  .hint{font-size:12px;color:#777;margin:0 0 12px;}
+  .wrap{max-height:66vh;overflow:auto;border:1px solid #e2e2e2;border-radius:4px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{background:var(--red);color:#fff;padding:8px 9px;position:sticky;top:0;z-index:2;white-space:nowrap;}
+  thead tr.grp th{background:#b00d20;font-size:11px;letter-spacing:.5px;}
+  th.l,td.l{text-align:left;} th,td{text-align:right;}
+  tbody td{border-bottom:1px solid #ececec;padding:7px 9px;white-space:nowrap;}
+  tbody tr:hover td{background:#fff5f4;}
+  td.oh{font-weight:700;background:#f3fbf4;}
+  td.neg{color:#c30c24;background:#fdeeee;}
+  tfoot td{position:sticky;bottom:0;background:#222;color:#fff;font-weight:700;padding:8px 9px;}
+  .empty{padding:30px;text-align:center;color:#888;}
+  .status{font-size:12px;color:#777;} .status.ok{color:#2c8a37;} .status.err{color:#c30c24;}
+  /* login */
+  .login-bg{position:fixed;inset:0;background:linear-gradient(135deg,#e8112d,#7a0a18);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .login{background:#fff;border-radius:12px;padding:34px 30px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.4);text-align:center;}
+  .login .mk{font-weight:900;color:var(--red);font-size:22px;}
+  .login h2{margin:8px 0 2px;color:var(--red);font-size:20px;} .login p{margin:0 0 18px;color:#888;font-size:13px;}
+  .login input{width:100%;padding:11px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-bottom:12px;}
+  .login button{width:100%;background:var(--red);color:#fff;border:none;border-radius:6px;padding:12px;font-weight:700;font-size:15px;cursor:pointer;}
+  .login .err{color:#c30c24;font-size:13px;min-height:18px;margin-bottom:6px;}
+</style>
+</head>
+<body>
+
+<div class="login-bg" id="loginBg">
+  <div class="login">
+    <div class="mk">MEATPLUS</div><div style="font-size:8px;color:var(--red);letter-spacing:1px;margin-bottom:6px">TRADING CORPORATION</div>
+    <h2>Inventory</h2><p>Please sign in</p>
+    <div class="err" id="loginErr"></div>
+    <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" />
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" />
+    <button id="loginBtn">Sign In</button>
+  </div>
+</div>
+
+<div class="app" id="appWrap" style="display:none">
+  <div class="winbar"><span>INVENTORY — MEATPLUS</span><span class="who" id="whoami"></span></div>
+  <div class="toolbar">
+    <button class="tbtn refresh" id="btnRefresh">Refresh</button>
+    <div class="spacer"></div>
+    <button class="tbtn back" id="btnRR">Receiving Report</button>
+    <button class="tbtn back" id="btnIS">Issue Slip</button>
+    <button class="tbtn icon" id="btnLogout" title="Sign out">⎋</button>
+  </div>
+
+  <div class="sheet">
+    <div class="topbar">
+      <h2>Stock on Hand</h2>
+      <input type="search" id="search" placeholder="Search item or brand…" />
+      <span class="pill" id="count">0 items</span>
+    </div>
+    <p class="hint">Stock on hand = total <b>received</b> (Receiving Reports) &minus; total <b>issued</b> (Issue Slips), per item &amp; brand. <span id="asof"></span></p>
+    <div class="wrap">
+      <table>
+        <thead>
+          <tr class="grp"><th class="l" colspan="2"></th><th colspan="2">RECEIVED</th><th colspan="2">ISSUED</th><th colspan="2">ON HAND</th></tr>
+          <tr>
+            <th class="l">ITEM</th><th class="l">BRAND</th>
+            <th>Boxes</th><th>Net Wt</th>
+            <th>Boxes</th><th>Net Wt</th>
+            <th>Boxes</th><th>Net Wt</th>
+          </tr>
+        </thead>
+        <tbody id="body"></tbody>
+        <tfoot><tr id="foot"></tr></tfoot>
+      </table>
+    </div>
+    <div class="status" id="status" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL="https://emkcwukiqxnvcbhkjiqz.supabase.co";
+const SUPABASE_KEY="sb_publishable_u_qnmEI8oHI9Z_A0-Hht3Q_Yvaa7Ork";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=id=>document.getElementById(id);
+const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const setStatus=(m,c="")=>{const s=$("status");s.textContent=m;s.className="status "+c;};
+let rows=[], me={name:"",email:"",role:""};
+
+function fmt(n){n=Number(n)||0;return n.toLocaleString(undefined,{maximumFractionDigits:3});}
+
+async function doLogin(){
+  $("loginErr").textContent="";const email=$("loginEmail").value.trim(),password=$("loginPass").value;
+  if(!email||!password){$("loginErr").textContent="Enter email and password";return;}
+  $("loginBtn").disabled=true;$("loginBtn").textContent="Signing in…";
+  const{error}=await sb.auth.signInWithPassword({email,password});
+  $("loginBtn").disabled=false;$("loginBtn").textContent="Sign In";
+  if(error){$("loginErr").textContent=error.message;return;}
+  afterLogin();
+}
+async function afterLogin(){
+  const{data:{user}}=await sb.auth.getUser();if(!user){showLogin();return;}
+  const{data:prof}=await sb.from("isrr_profiles").select("*").eq("id",user.id).single();
+  me={name:prof?.full_name||"",email:user.email,role:prof?.role||"viewer"};
+  $("loginBg").style.display="none";$("appWrap").style.display="block";
+  $("whoami").innerHTML=`${esc(me.name||me.email)} · <b>${esc(me.role.toUpperCase())}</b>`;
+  load();
+}
+function showLogin(){$("appWrap").style.display="none";$("loginBg").style.display="flex";}
+async function doLogout(){await sb.auth.signOut();location.reload();}
+
+async function load(){
+  setStatus("Loading…");
+  const{data,error}=await sb.from("isrr_inventory").select("*").order("item").order("brand");
+  if(error){setStatus("Load error: "+error.message,"err");return;}
+  rows=data||[];
+  $("asof").textContent="As of "+new Date().toLocaleString();
+  render($("search").value);
+  setStatus("Ready ✓","ok");
+}
+function render(filter=""){
+  const f=(filter||"").toLowerCase();
+  const list=rows.filter(r=>((r.item||"")+" "+(r.brand||"")).toLowerCase().includes(f));
+  $("count").textContent=list.length+" items";
+  if(!list.length){$("body").innerHTML=`<tr><td class="empty" colspan="8">No inventory records${rows.length?" match your search":" yet"}.</td></tr>`;$("foot").innerHTML="";return;}
+  $("body").innerHTML=list.map(r=>{
+    const ohbCls="oh"+(Number(r.onhand_boxes)<0?" neg":""), ohnCls="oh"+(Number(r.onhand_net)<0?" neg":"");
+    return `<tr>
+      <td class="l">${esc(r.item||"")}</td><td class="l">${esc(r.brand||"")}</td>
+      <td>${fmt(r.recv_boxes)}</td><td>${fmt(r.recv_net)}</td>
+      <td>${fmt(r.iss_boxes)}</td><td>${fmt(r.iss_net)}</td>
+      <td class="${ohbCls}">${fmt(r.onhand_boxes)}</td><td class="${ohnCls}">${fmt(r.onhand_net)}</td>
+    </tr>`;}).join("");
+  const sum=k=>list.reduce((a,r)=>a+(Number(r[k])||0),0);
+  $("foot").innerHTML=`<td class="l">TOTAL</td><td></td>
+    <td>${fmt(sum("recv_boxes"))}</td><td>${fmt(sum("recv_net"))}</td>
+    <td>${fmt(sum("iss_boxes"))}</td><td>${fmt(sum("iss_net"))}</td>
+    <td>${fmt(sum("onhand_boxes"))}</td><td>${fmt(sum("onhand_net"))}</td>`;
+}
+
+$("btnRefresh").onclick=load;
+$("btnLogout").onclick=doLogout;
+$("btnRR").onclick=()=>location.href="index.html";
+$("btnIS").onclick=()=>location.href="issue-slip.html";
+$("search").addEventListener("input",e=>render(e.target.value));
+$("loginBtn").onclick=doLogin;
+$("loginPass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
+
+(async function(){const{data:{session}}=await sb.auth.getSession();if(session)afterLogin();else showLogin();})();
+</script>
+</body>
+</html>
