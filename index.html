@@ -187,7 +187,10 @@
 
   <!-- FORM VIEW -->
   <div class="sheet" id="formView">
-    <div class="topgrid">
+    <div class="topgrid" style="grid-template-columns:150px 1.4fr 1.2fr">
+      <div>
+        <div class="logo" style="width:140px"><img src="meatplus-logo.png" alt="MEATPLUS Trading Corporation" style="width:100%;display:block" /></div>
+      </div>
       <div>
         <div class="fld"><label>Supplier</label><select id="supplier" class="grow"></select><button class="miniadd green" data-add="supplier">Add</button></div>
         <div class="fld"><label>STORAGE</label><select id="storage" class="grow"></select><button class="miniadd tan" data-add="storage">Add</button></div>
@@ -199,10 +202,7 @@
         <div class="fld"><label>RRCODE</label><input type="text" id="rrcode" placeholder="(auto)" /></div>
         <div class="fld"><label>NUMBER</label><input type="text" id="number" /></div>
       </div>
-      <div class="rightcol">
-        <div class="logo"><img src="meatplus-logo.png" alt="MEATPLUS Trading Corporation" style="width:100%;display:block" /></div>
-        <div class="seqbox" style="margin-top:8px"><label style="font-weight:800;font-size:12px;margin-right:6px">No.</label><input type="text" id="seq_no" readonly style="width:100px;text-align:right" /></div>
-      </div>
+      <input type="text" id="seq_no" readonly style="display:none" />
     </div>
 
     <div class="types" id="types">
