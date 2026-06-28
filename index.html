@@ -153,7 +153,7 @@
 <!-- LOGIN -->
 <div class="login-bg" id="loginBg">
   <div class="login">
-    <div class="logo"><img src="meatplus-logo.svg" alt="MEATPLUS Trading Corporation" style="width:100%;display:block" /></div>
+    <div class="logo"><img src="meatplus-logo.png" alt="MEATPLUS Trading Corporation" style="width:100%;display:block" /></div>
     <h2>IS-RR System</h2>
     <p>Receiving Report — please sign in</p>
     <div class="err" id="loginErr"></div>
@@ -198,7 +198,7 @@
         <div class="fld"><label>PO NO</label><input type="text" id="po_no" /><button class="search-btn">🔍</button></div>
       </div>
       <div class="rightcol">
-        <div class="logo"><img src="meatplus-logo.svg" alt="MEATPLUS Trading Corporation" style="width:100%;display:block" /></div>
+        <div class="logo"><img src="meatplus-logo.png" alt="MEATPLUS Trading Corporation" style="width:100%;display:block" /></div>
         <div class="seqbox"><input type="text" id="seq_no" readonly style="width:110px" /></div>
         <div class="fld" style="justify-content:flex-end"><label style="min-width:70px">RRCODE</label><input type="text" id="rrcode" style="width:130px" placeholder="(auto)" /></div>
         <div class="fld" style="justify-content:flex-end"><label style="min-width:70px">NUMBER</label><input type="text" id="number" style="width:130px" /></div>
@@ -710,7 +710,7 @@ function buildPrintArea(){
   const code=(b,label,val)=>`<div class="row"><b>${label}</b><div class="bx">${esc(val||"")}</div></div>`;
   const copy=`
     <div class="pr-top">
-      <div class="pr-logo"><img src="meatplus-logo.svg" alt="MEATPLUS" style="width:100%;display:block" /></div>
+      <div class="pr-logo"><img src="meatplus-logo.png" alt="MEATPLUS" style="width:100%;display:block" /></div>
       <div class="pr-title">RECEIVING REPORT</div>
       <div class="pr-codes">
         ${code(1,"RRCODE",$("rrcode").value)}
