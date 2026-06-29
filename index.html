@@ -127,6 +127,8 @@
   #printArea .rf-sign .s{flex:1;text-align:center;}
   #printArea .rf-sign .s .nm{font-weight:bold;border-bottom:1px solid #000;padding-bottom:2px;min-height:18px;}
   #printArea .rf-sign .s .lbl{font-size:10px;margin-top:3px;}
+  #printArea .rf-copy{break-inside:avoid;page-break-inside:avoid;}
+  #printArea .rf-cut{border-top:1px dashed #999;margin:16px 0;}
 </style>
 </head>
 <body>
@@ -726,7 +728,7 @@ function buildPrintArea(){
   if(!filled.length) body=`<tr><td class="l">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
   body+=`<tr class="rf-total"><td colspan="3">TOTAL</td><td>${esc($("totBoxes").value||"")}</td><td>${esc($("totWeight").value||"")}</td><td colspan="4"></td></tr>`;
   const sign=(name,label)=>`<div class="s"><div class="nm">${esc(name||"")}</div><div class="lbl">${label}</div></div>`;
-  $("printArea").innerHTML=`
+  const copy=`
     <div class="rf-head">
       <div class="rf-brand">
         <img src="meatplus-logo.png" alt="MEATPLUS Trading Corporation" />
@@ -762,6 +764,18 @@ function buildPrintArea(){
       ${sign($("noted_by").value,"NOTED BY")}
       ${sign($("verified_by").value,"VERIFIED BY")}
     </div>`;
+  // Duplicate (2 copies on one page) only if a single copy fits in half the page; otherwise one copy that flows to more pages.
+  const pa=$("printArea");
+  pa.innerHTML=`<div class="rf-copy">${copy}</div>`;
+  const prev={d:pa.style.display,p:pa.style.position,l:pa.style.left,w:pa.style.width};
+  pa.style.display="block";pa.style.position="absolute";pa.style.left="-99999px";pa.style.width="190mm"; // A4 portrait content width
+  const h=pa.firstElementChild.offsetHeight;
+  pa.style.display=prev.d;pa.style.position=prev.p;pa.style.left=prev.l;pa.style.width=prev.w;
+  const pageH=277*3.7795276;   // A4 portrait usable height (px @96dpi)
+  const twoFit=(h*2+30) <= pageH*0.98;
+  pa.innerHTML = twoFit
+    ? `<div class="rf-copy">${copy}</div><div class="rf-cut"></div><div class="rf-copy">${copy}</div>`
+    : copy;
 }
 function printForm(){ buildPrintArea(); window.print(); }
 
