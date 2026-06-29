@@ -429,7 +429,16 @@ function makeRow(){
   });
   // Item Code -> fill Description + Brand; Description -> fill Brand (+ Code) automatically
   const codeInp=cell(tr,"item_code"), itemInp=cell(tr,"item");
-  const fromCode=()=>{ if(!canEdit())return; const m=codeMap[(codeInp.value||"").trim().toLowerCase()]; if(m){ if(m.desc&&cell(tr,"item").value!==m.desc){cell(tr,"item").value=m.desc;} if(m.brand&&!cell(tr,"brand").value.trim()){cell(tr,"brand").value=m.brand;} markDirty(); } };
+  const fromCode=()=>{
+    if(!canEdit())return;
+    const code=(codeInp.value||"").trim();
+    if(!code){ // clearing the Item Code clears Description + Brand too
+      if(cell(tr,"item").value||cell(tr,"brand").value){ cell(tr,"item").value=""; cell(tr,"brand").value=""; markDirty(); recalc(); }
+      return;
+    }
+    const m=codeMap[code.toLowerCase()];
+    if(m){ if(m.desc&&cell(tr,"item").value!==m.desc){cell(tr,"item").value=m.desc;} if(m.brand&&!cell(tr,"brand").value.trim()){cell(tr,"brand").value=m.brand;} markDirty(); recalc(); }
+  };
   const fromDesc=()=>{ if(!canEdit())return; const key=(itemInp.value||"").trim().toLowerCase(); const b=itemBrandMap[key]; if(b){const bc=cell(tr,"brand");if(bc.value!==b){bc.value=b;markDirty();}} const c=descToCode[key]; if(c&&!cell(tr,"item_code").value.trim()){cell(tr,"item_code").value=c;markDirty();} };
   codeInp.addEventListener("input",fromCode);codeInp.addEventListener("change",fromCode);
   itemInp.addEventListener("input",fromDesc);itemInp.addEventListener("change",fromDesc);
