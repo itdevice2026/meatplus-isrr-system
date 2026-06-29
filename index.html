@@ -397,8 +397,8 @@ function makeRow(){
     <td class="l"><input data-f="brand" list="brandlist"></td>
     <td><input data-f="number_of_boxes" inputmode="decimal"></td>
     <td><input data-f="net_weight" inputmode="decimal"></td>
-    <td><input data-f="pd" placeholder="dd-Mmm-yy"></td>
-    <td><input data-f="ed" placeholder="dd-Mmm-yy"></td>
+    <td><input data-f="pd" type="date"></td>
+    <td><input data-f="ed" type="date"></td>
     <td class="l"><input data-f="pallet_no"></td>
     <td class="l"><input data-f="remarks"></td>
     <td style="text-align:center"><button class="rowdel" title="Remove / clear row">×</button></td>`;
@@ -441,9 +441,11 @@ function addRow(){
 }
 
 const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const isoToDisp=iso=>{if(!iso)return"";const[y,m,d]=iso.split("-");return `${(+d)<10?"0"+(+d):d}-${MON[+m-1]}-${String(y).slice(2)}`;};
+const isoToDisp=iso=>{if(!iso)return"";const[y,m,d]=iso.split("-");return `${m}/${d}/${y}`;};   // mm/dd/yyyy
 function dispToIso(s){if(!s)return null;s=s.trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
-  const m=s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3})[-\/ ](\d{2,4})$/);
+  let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);   // mm/dd/yyyy
+  if(m){let mo=+m[1],da=+m[2],y=+m[3];if(y<100)y+=2000;return `${y}-${String(mo).padStart(2,"0")}-${String(da).padStart(2,"0")}`;}
+  m=s.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3})[-\/ ](\d{2,4})$/);   // legacy dd-Mmm-yy
   if(m){const mi=MON.findIndex(x=>x.toLowerCase()===m[2].toLowerCase());if(mi<0)return null;let y=+m[3];if(y<100)y+=2000;return `${y}-${String(mi+1).padStart(2,"0")}-${String(+m[1]).padStart(2,"0")}`;}
   const d=new Date(s);return isNaN(d)?null:d.toISOString().slice(0,10);}
 
@@ -479,7 +481,7 @@ function renderCurrent(){
   (current?.items||[]).forEach((it,i)=>{const tr=trs[i];if(!tr)return;
     cell(tr,"item_code").value=it.item_code||"";cell(tr,"item").value=it.item||"";cell(tr,"brand").value=it.brand||"";
     cell(tr,"number_of_boxes").value=it.number_of_boxes??"";cell(tr,"net_weight").value=it.net_weight??"";
-    cell(tr,"pd").value=isoToDisp(it.pd);cell(tr,"ed").value=isoToDisp(it.ed);cell(tr,"pallet_no").value=it.pallet_no||"";cell(tr,"remarks").value=it.remarks||"";});
+    cell(tr,"pd").value=it.pd||"";cell(tr,"ed").value=it.ed||"";cell(tr,"pallet_no").value=it.pallet_no||"";cell(tr,"remarks").value=it.remarks||"";});
   recalc();$("recInfo").textContent=(reports.length?(idx+1):0)+" of "+reports.length;clearDirty();navButtons();applyRole();
 }
 const blankHeader=()=>({transaction_type:"PURCHASED",rr_date:new Date().toISOString().slice(0,10)});
@@ -496,7 +498,7 @@ function gather(){
   allRows().forEach(tr=>{const item=cell(tr,"item").value.trim();if(!item)return;
     items.push({line_no:items.length+1,item_code:cell(tr,"item_code").value.trim()||null,item,brand:cell(tr,"brand").value.trim()||null,
       number_of_boxes:parseFloat(cell(tr,"number_of_boxes").value)||null,net_weight:parseFloat(cell(tr,"net_weight").value)||null,
-      pd:dispToIso(cell(tr,"pd").value),ed:dispToIso(cell(tr,"ed").value),pallet_no:cell(tr,"pallet_no").value.trim()||null,remarks:cell(tr,"remarks").value.trim()||null});});
+      pd:cell(tr,"pd").value||null,ed:cell(tr,"ed").value||null,pallet_no:cell(tr,"pallet_no").value.trim()||null,remarks:cell(tr,"remarks").value.trim()||null});});
   return{h,items};
 }
 async function saveRecord(){
