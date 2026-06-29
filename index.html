@@ -130,9 +130,9 @@
   #printArea table.pr-t td.l{text-align:left;}
   /* totals aligned under NO. OF BOXES (9%) and NET WEIGHT (11%) columns */
   #printArea .pr-totrow{display:flex;align-items:stretch;}
-  #printArea .pr-totrow .lbl{width:38%;font-weight:bold;font-size:15px;display:flex;align-items:flex-end;padding-bottom:3px;}
-  #printArea .pr-totrow .tbx{width:9%;border:1px solid #000;border-top:none;text-align:center;font-weight:bold;padding:4px;}
-  #printArea .pr-totrow .tbx.net{width:11%;}
+  #printArea .pr-totrow .lbl{width:37%;font-weight:bold;font-size:15px;display:flex;align-items:flex-end;padding-bottom:3px;}
+  #printArea .pr-totrow .tbx{width:8%;border:1px solid #000;border-top:none;text-align:center;font-weight:bold;padding:4px;}
+  #printArea .pr-totrow .tbx.net{width:9%;}
   #printArea .pr-note{margin-top:2px;}
   #printArea .pr-note .bx{width:66%;min-height:28px;}
   #printArea .pr-sign{display:flex;justify-content:space-between;margin-top:30px;gap:18px;}
@@ -215,9 +215,9 @@
 
     <table class="items">
       <thead><tr>
-        <th style="width:24%">ITEM</th><th style="width:13%">BRAND</th>
-        <th style="width:12%">NUMBER OF BOXES</th><th style="width:12%">NET WEIGHT</th>
-        <th style="width:11%">PD</th><th style="width:11%">ED</th><th>REMARKS</th><th style="width:28px"></th>
+        <th style="width:11%">ITEM CODE</th><th style="width:19%">ITEM DESCRIPTION</th><th style="width:11%">BRAND</th>
+        <th style="width:9%">NUMBER OF BOXES</th><th style="width:9%">NET WEIGHT</th>
+        <th style="width:9%">PD</th><th style="width:9%">ED</th><th style="width:9%">PALLET NO.</th><th>REMARKS</th><th style="width:24px"></th>
       </tr></thead>
       <tbody id="itemBody"></tbody>
     </table>
@@ -406,12 +406,14 @@ const allRows=()=>document.querySelectorAll("#itemBody tr");
 function makeRow(){
   const tr=document.createElement("tr");
   tr.innerHTML=`
+    <td class="l"><input data-f="item_code" list="codelist"></td>
     <td class="l"><input data-f="item" list="itemlist"></td>
     <td class="l"><input data-f="brand" list="brandlist"></td>
     <td><input data-f="number_of_boxes" inputmode="decimal"></td>
     <td><input data-f="net_weight" inputmode="decimal"></td>
     <td><input data-f="pd" placeholder="dd-Mmm-yy"></td>
     <td><input data-f="ed" placeholder="dd-Mmm-yy"></td>
+    <td class="l"><input data-f="pallet_no"></td>
     <td class="l"><input data-f="remarks"></td>
     <td style="text-align:center"><button class="rowdel" title="Remove / clear row">×</button></td>`;
   tr.querySelectorAll("input").forEach(inp=>{
@@ -424,15 +426,12 @@ function makeRow(){
     else { tr.querySelectorAll("input").forEach(x=>x.value=""); }  // keep the base rows, just clear
     rowCount=allRows().length; markDirty(); recalc();
   });
-  // when an Item is chosen/typed, reflect its Brand automatically (matches known item)
-  const itemInp=tr.querySelector('input[data-f="item"]');
-  const reflectBrand=()=>{
-    if(!canEdit())return;
-    const b=itemBrandMap[(itemInp.value||"").trim().toLowerCase()];
-    if(b){const bc=cell(tr,"brand");if(bc.value!==b){bc.value=b;markDirty();}}
-  };
-  itemInp.addEventListener("input",reflectBrand);   // fires when picking a datalist suggestion
-  itemInp.addEventListener("change",reflectBrand);  // and on blur / commit
+  // Item Code -> fill Description + Brand; Description -> fill Brand (+ Code) automatically
+  const codeInp=cell(tr,"item_code"), itemInp=cell(tr,"item");
+  const fromCode=()=>{ if(!canEdit())return; const m=codeMap[(codeInp.value||"").trim().toLowerCase()]; if(m){ if(m.desc&&cell(tr,"item").value!==m.desc){cell(tr,"item").value=m.desc;} if(m.brand&&!cell(tr,"brand").value.trim()){cell(tr,"brand").value=m.brand;} markDirty(); } };
+  const fromDesc=()=>{ if(!canEdit())return; const key=(itemInp.value||"").trim().toLowerCase(); const b=itemBrandMap[key]; if(b){const bc=cell(tr,"brand");if(bc.value!==b){bc.value=b;markDirty();}} const c=descToCode[key]; if(c&&!cell(tr,"item_code").value.trim()){cell(tr,"item_code").value=c;markDirty();} };
+  codeInp.addEventListener("input",fromCode);codeInp.addEventListener("change",fromCode);
+  itemInp.addEventListener("input",fromDesc);itemInp.addEventListener("change",fromDesc);
   return tr;
 }
 function buildRows(n){
@@ -483,9 +482,9 @@ function renderCurrent(){
   document.querySelectorAll('input[name="ttype"]').forEach(r=>{r.checked=(r.value===(h.transaction_type||"PURCHASED"));r.disabled=!canEdit();});
   const trs=allRows();
   (current?.items||[]).forEach((it,i)=>{const tr=trs[i];if(!tr)return;
-    cell(tr,"item").value=it.item||"";cell(tr,"brand").value=it.brand||"";
+    cell(tr,"item_code").value=it.item_code||"";cell(tr,"item").value=it.item||"";cell(tr,"brand").value=it.brand||"";
     cell(tr,"number_of_boxes").value=it.number_of_boxes??"";cell(tr,"net_weight").value=it.net_weight??"";
-    cell(tr,"pd").value=isoToDisp(it.pd);cell(tr,"ed").value=isoToDisp(it.ed);cell(tr,"remarks").value=it.remarks||"";});
+    cell(tr,"pd").value=isoToDisp(it.pd);cell(tr,"ed").value=isoToDisp(it.ed);cell(tr,"pallet_no").value=it.pallet_no||"";cell(tr,"remarks").value=it.remarks||"";});
   recalc();$("recInfo").textContent=(reports.length?(idx+1):0)+" of "+reports.length;clearDirty();navButtons();applyRole();
 }
 const blankHeader=()=>({transaction_type:"PURCHASED",rr_date:new Date().toISOString().slice(0,10)});
@@ -500,9 +499,9 @@ function gather(){
     noted_by:$("noted_by").value.trim()||null,verified_by:$("verified_by").value.trim()||null};
   const items=[];
   allRows().forEach(tr=>{const item=cell(tr,"item").value.trim();if(!item)return;
-    items.push({line_no:items.length+1,item,brand:cell(tr,"brand").value.trim()||null,
+    items.push({line_no:items.length+1,item_code:cell(tr,"item_code").value.trim()||null,item,brand:cell(tr,"brand").value.trim()||null,
       number_of_boxes:parseFloat(cell(tr,"number_of_boxes").value)||null,net_weight:parseFloat(cell(tr,"net_weight").value)||null,
-      pd:dispToIso(cell(tr,"pd").value),ed:dispToIso(cell(tr,"ed").value),remarks:cell(tr,"remarks").value.trim()||null});});
+      pd:dispToIso(cell(tr,"pd").value),ed:dispToIso(cell(tr,"ed").value),pallet_no:cell(tr,"pallet_no").value.trim()||null,remarks:cell(tr,"remarks").value.trim()||null});});
   return{h,items};
 }
 async function saveRecord(){
@@ -703,11 +702,11 @@ function buildPrintArea(){
   let dstr="";if($("rr_date").value){const[y,m,d]=$("rr_date").value.split("-");dstr=(+m)+"/"+(+d)+"/"+y;}
   // rows
   const filled=[];
-  allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(it)filled.push({it,brand:cell(tr,"brand").value,boxes:cell(tr,"number_of_boxes").value,net:cell(tr,"net_weight").value,pd:cell(tr,"pd").value,ed:cell(tr,"ed").value,rem:cell(tr,"remarks").value});});
+  allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(it)filled.push({code:cell(tr,"item_code").value,it,brand:cell(tr,"brand").value,boxes:cell(tr,"number_of_boxes").value,net:cell(tr,"net_weight").value,pd:cell(tr,"pd").value,ed:cell(tr,"ed").value,pallet:cell(tr,"pallet_no").value,rem:cell(tr,"remarks").value});});
   const totalRows=Math.max(filled.length,1);   // rows reflect the number of items encoded
   let body="";
   for(let i=0;i<totalRows;i++){const r=filled[i]||{};
-    body+=`<tr><td class="l">${esc(r.it||"")}</td><td class="l">${esc(r.brand||"")}</td><td>${esc(r.boxes||"")}</td><td>${esc(r.net||"")}</td><td>${esc(r.pd||"")}</td><td>${esc(r.ed||"")}</td><td class="l">${esc(r.rem||"")}</td></tr>`;}
+    body+=`<tr><td class="l">${esc(r.code||"")}</td><td class="l">${esc(r.it||"")}</td><td class="l">${esc(r.brand||"")}</td><td>${esc(r.boxes||"")}</td><td>${esc(r.net||"")}</td><td>${esc(r.pd||"")}</td><td>${esc(r.ed||"")}</td><td>${esc(r.pallet||"")}</td><td class="l">${esc(r.rem||"")}</td></tr>`;}
   const code=(b,label,val)=>`<div class="row"><b>${label}</b><div class="bx">${esc(val||"")}</div></div>`;
   const copy=`
     <div class="pr-top">
@@ -729,9 +728,9 @@ function buildPrintArea(){
     </div>
     <table class="pr-t">
       <thead><tr>
-        <th style="width:24%">ITEM DESCRIPTION</th><th style="width:14%">BRAND</th>
-        <th style="width:9%">NO. OF<br>BOXES</th><th style="width:11%">NET WEIGHT</th>
-        <th style="width:10%">PD</th><th style="width:10%">ED</th><th>REMARKS</th>
+        <th style="width:9%">ITEM CODE</th><th style="width:17%">ITEM DESCRIPTION</th><th style="width:11%">BRAND</th>
+        <th style="width:8%">NO. OF<br>BOXES</th><th style="width:9%">NET WEIGHT</th>
+        <th style="width:8%">PD</th><th style="width:8%">ED</th><th style="width:8%">PALLET<br>NO.</th><th>REMARKS</th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table>
@@ -824,27 +823,31 @@ function fillDatalist(id,arr){
   if(!dl){dl=document.createElement("datalist");dl.id=id;document.body.appendChild(dl);}
   dl.innerHTML=arr.map(v=>`<option value="${esc(v)}">`).join("");
 }
-let itemBrandMap={};   // item name (lowercase) -> typical brand
+let itemBrandMap={};   // description (lowercase) -> typical brand
+let codeMap={};        // item code (lowercase) -> {desc, brand}
+let descToCode={};     // description (lowercase) -> item code
 async function loadCatalogs(){
   const[{data:it},{data:br}]=await Promise.all([
-    sb.from("isrr_item_master").select("name,brand").order("name"),
+    sb.from("isrr_item_master").select("name,brand,item_code").order("name"),
     sb.from("isrr_brand_master").select("name").order("name"),
   ]);
-  itemBrandMap={};
-  (it||[]).forEach(r=>{if(r.brand)itemBrandMap[(r.name||"").toLowerCase()]=r.brand;});
+  itemBrandMap={};codeMap={};descToCode={};
+  (it||[]).forEach(r=>{
+    const desc=r.name||""; if(r.brand)itemBrandMap[desc.toLowerCase()]=r.brand;
+    if(r.item_code){const c=r.item_code.trim();codeMap[c.toLowerCase()]={desc,brand:r.brand||""};descToCode[desc.toLowerCase()]=c;}
+  });
   fillDatalist("itemlist",(it||[]).map(r=>r.name));
   fillDatalist("brandlist",(br||[]).map(r=>r.name));
+  fillDatalist("codelist",(it||[]).map(r=>r.item_code).filter(Boolean));
 }
 async function syncCatalogs(items){
   const brandNames=[...new Set(items.map(i=>i.brand).filter(Boolean))];
-  // latest brand seen per item in this save
+  // latest brand + code seen per description in this save
   const map={};
-  items.forEach(i=>{if(i.item){if(i.brand)map[i.item]=i.brand;else if(!(i.item in map))map[i.item]=null;}});
-  const withBrand=Object.entries(map).filter(([,b])=>b).map(([name,brand])=>({name,brand}));
-  const noBrand=Object.entries(map).filter(([,b])=>!b).map(([name])=>({name}));
+  items.forEach(i=>{if(i.item){const k=i.item;if(!map[k])map[k]={name:k};if(i.brand)map[k].brand=i.brand;if(i.item_code)map[k].item_code=i.item_code;}});
+  const rows=Object.values(map);
   const tasks=[];
-  if(withBrand.length) tasks.push(sb.from("isrr_item_master").upsert(withBrand,{onConflict:"name"}));                       // updates the item's brand
-  if(noBrand.length)   tasks.push(sb.from("isrr_item_master").upsert(noBrand,{onConflict:"name",ignoreDuplicates:true}));   // add new item, keep existing brand
+  if(rows.length) tasks.push(sb.from("isrr_item_master").upsert(rows,{onConflict:"name"}));   // adds/updates description with its brand & code
   if(brandNames.length)tasks.push(sb.from("isrr_brand_master").upsert(brandNames.map(name=>({name})),{onConflict:"name",ignoreDuplicates:true}));
   if(tasks.length){try{await Promise.all(tasks);await loadCatalogs();}catch(e){/* non-fatal */}}
 }
