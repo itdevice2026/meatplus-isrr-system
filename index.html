@@ -102,51 +102,31 @@
   /* ===== PRINT FORM (matches the official Receiving Report layout) ===== */
   #printArea{display:none;}
   @media print{
-    @page{size:A4 portrait;margin:8mm;}
+    @page{size:A4 portrait;margin:10mm;}
     body{background:#fff;}
     .app,.login-bg,.modal-bg{display:none!important;}
     #printArea{display:block!important;}
+    #printArea thead{display:table-header-group;}   /* repeat column headers on each page */
+    #printArea .rf-sign{break-inside:avoid;}
   }
-  #printArea{color:#000;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;}
-  #printArea .pr-top{display:flex;justify-content:space-between;align-items:flex-start;}
-  #printArea .pr-logo{width:155px;text-align:center;}
-  #printArea .pr-logo img{width:150px;display:block;}
-  #printArea .pr-title{flex:1;text-align:center;font-size:24px;font-weight:bold;letter-spacing:1px;margin-top:26px;}
-  #printArea .pr-codes{width:330px;}
-  #printArea .pr-codes .row{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:8px;}
-  #printArea .pr-codes b{font-size:12.5px;}
-  #printArea .bx{border:1px solid #000;padding:3px 8px;min-height:23px;}
-  #printArea .pr-codes .bx{width:195px;text-align:center;}
-  #printArea .pr-fields{margin:4px 0 8px;}
-  #printArea .pr-fields .f{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
-  #printArea .pr-fields .f b{width:80px;font-size:12.5px;}
-  #printArea .pr-fields .f .bx{flex:1;}
-  #printArea .pr-types{display:flex;gap:44px;margin:14px 0;font-weight:bold;font-size:12.5px;}
-  #printArea .pr-types span.c{display:inline-flex;align-items:center;gap:7px;}
-  #printArea .pr-types .cb{width:15px;height:15px;border:1.5px solid #000;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;}
-  #printArea table.pr-t{width:100%;border-collapse:collapse;}
-  #printArea table.pr-t th{font-size:12px;font-weight:bold;text-align:center;padding:3px;vertical-align:bottom;}
-  #printArea table.pr-t td{border:1px solid #000;height:28px;padding:3px 6px;text-align:center;font-size:12px;}
-  #printArea table.pr-t td.l{text-align:left;}
-  /* totals aligned under NO. OF BOXES (9%) and NET WEIGHT (11%) columns */
-  #printArea .pr-totrow{display:flex;align-items:stretch;}
-  #printArea .pr-totrow .lbl{width:37%;font-weight:bold;font-size:15px;display:flex;align-items:flex-end;padding-bottom:3px;}
-  #printArea .pr-totrow .tbx{width:8%;border:1px solid #000;border-top:none;text-align:center;font-weight:bold;padding:4px;}
-  #printArea .pr-totrow .tbx.net{width:9%;}
-  #printArea .pr-note{margin-top:2px;}
-  #printArea .pr-note .bx{width:66%;min-height:28px;}
-  #printArea .pr-sign{display:flex;justify-content:space-between;margin-top:30px;gap:18px;}
-  #printArea .pr-sign .s{flex:1;}
-  #printArea .pr-sign .s label{font-weight:bold;display:block;margin-bottom:10px;font-size:13px;}
-  #printArea .pr-sign .s .bx{text-align:center;min-height:32px;}
-  /* duplicate copies: each is half the page so they fill the sheet; signatures pinned to the bottom */
-  #printArea .pr-copy{break-inside:avoid;page-break-inside:avoid;display:flex;flex-direction:column;}
-  #printArea .pr-cut{border-top:1px dashed #999;margin:16px 0;}
-  @media print{
-    #printArea .pr-cut{margin:8px 0;}
-    #printArea .pr-copy{min-height:133mm;}
-    #printArea .pr-copy .pr-sign{margin-top:auto;}
-  }
+  /* ===== Receiving Report printout (clean tabular format) ===== */
+  #printArea{color:#000;font-family:"Times New Roman",Georgia,serif;font-size:11px;}
+  #printArea .rf-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+  #printArea .rf-brand img{height:48px;display:block;}
+  #printArea .rf-brand .rf-sub{font-size:8.5px;color:#555;margin-top:3px;max-width:230px;}
+  #printArea .rf-title{font-size:22px;font-weight:bold;letter-spacing:1px;}
+  #printArea .rf-meta{display:flex;justify-content:space-between;gap:30px;margin-bottom:10px;}
+  #printArea .rf-meta .rf-col{flex:1;}
+  #printArea .rf-meta .rf-col div{margin-bottom:4px;font-size:11px;}
+  #printArea table.rf-t{width:100%;border-collapse:collapse;}
+  #printArea table.rf-t th{border:1px solid #000;font-weight:bold;text-align:center;padding:4px 3px;font-size:10px;}
+  #printArea table.rf-t td{border:1px solid #000;text-align:center;padding:3px;font-size:10px;}
+  #printArea table.rf-t td.l{text-align:left;}
+  #printArea table.rf-t tr.rf-total td{font-weight:bold;padding:5px 4px;}
+  #printArea .rf-sign{display:flex;justify-content:space-between;gap:26px;margin-top:46px;}
+  #printArea .rf-sign .s{flex:1;text-align:center;}
+  #printArea .rf-sign .s .nm{font-weight:bold;border-bottom:1px solid #000;padding-bottom:2px;min-height:18px;}
+  #printArea .rf-sign .s .lbl{font-size:10px;margin-top:3px;}
 </style>
 </head>
 <body>
@@ -732,62 +712,56 @@ async function importItems(rows){
   impMsg("Imported / updated "+items.length+" items"+(brandSet.length?(" and "+brandSet.length+" brand(s)"):"")+".",false);
 }
 
-// ---------- PRINT FORM (official Receiving Report layout) ----------
+// ---------- PRINT (clean tabular Receiving Report) ----------
+function fmtMDY(v){const iso=dispToIso(v);if(!iso)return esc(v||"");const[y,m,d]=iso.split("-");return m+"/"+d+"/"+y;}
 function buildPrintArea(){
-  const supName=esc($("supplier").selectedOptions[0]?.text||"");
-  const stoName=esc($("storage").selectedOptions[0]?.text||"");
+  const supName=$("supplier").selectedOptions[0]?.text||"";
+  const stoName=$("storage").selectedOptions[0]?.text||"";
   const ttype=document.querySelector('input[name="ttype"]:checked')?.value||"";
-  const types=["PURCHASED","STOCK TRANSFER","BACKLOAD","RETURNED"];
-  // M/D/YYYY date like the form
-  let dstr="";if($("rr_date").value){const[y,m,d]=$("rr_date").value.split("-");dstr=(+m)+"/"+(+d)+"/"+y;}
-  // rows
+  const meta=(label,val)=>`<div><b>${label}:</b> ${esc(val||"")}</div>`;
   const filled=[];
   allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(it)filled.push({code:cell(tr,"item_code").value,it,brand:cell(tr,"brand").value,boxes:cell(tr,"number_of_boxes").value,net:cell(tr,"net_weight").value,pd:cell(tr,"pd").value,ed:cell(tr,"ed").value,pallet:cell(tr,"pallet_no").value,rem:cell(tr,"remarks").value});});
-  const totalRows=Math.max(filled.length,1);   // rows reflect the number of items encoded
   let body="";
-  for(let i=0;i<totalRows;i++){const r=filled[i]||{};
-    body+=`<tr><td class="l">${esc(r.code||"")}</td><td class="l">${esc(r.it||"")}</td><td class="l">${esc(r.brand||"")}</td><td>${esc(r.boxes||"")}</td><td>${esc(r.net||"")}</td><td>${esc(r.pd||"")}</td><td>${esc(r.ed||"")}</td><td>${esc(r.pallet||"")}</td><td class="l">${esc(r.rem||"")}</td></tr>`;}
-  const code=(b,label,val)=>`<div class="row"><b>${label}</b><div class="bx">${esc(val||"")}</div></div>`;
-  const copy=`
-    <div class="pr-top">
-      <div class="pr-logo"><img src="meatplus-logo.png" alt="MEATPLUS" style="width:100%;display:block" /></div>
-      <div class="pr-title">RECEIVING REPORT</div>
-      <div class="pr-codes">
-        ${code(1,"RRCODE",$("rrcode").value)}
-        ${code(1,"DATE",dstr)}
-        ${code(1,"CV NO",$("cv_no").value)}
-        ${code(1,"PO NO",$("po_no").value)}
+  filled.forEach(r=>{body+=`<tr><td class="l">${esc(r.code||"")}</td><td class="l">${esc(r.it||"")}</td><td>${esc(r.brand||"")}</td><td>${esc(r.boxes||"")}</td><td>${esc(r.net||"")}</td><td>${fmtMDY(r.pd)}</td><td>${fmtMDY(r.ed)}</td><td>${esc(r.pallet||"")}</td><td class="l">${esc(r.rem||"")}</td></tr>`;});
+  if(!filled.length) body=`<tr><td class="l">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+  body+=`<tr class="rf-total"><td colspan="3">TOTAL</td><td>${esc($("totBoxes").value||"")}</td><td>${esc($("totWeight").value||"")}</td><td colspan="4"></td></tr>`;
+  const sign=(name,label)=>`<div class="s"><div class="nm">${esc(name||"")}</div><div class="lbl">${label}</div></div>`;
+  $("printArea").innerHTML=`
+    <div class="rf-head">
+      <div class="rf-brand">
+        <img src="meatplus-logo.png" alt="MEATPLUS Trading Corporation" />
+        <div class="rf-sub">Receiving &amp; Issuance Management System</div>
+      </div>
+      <div class="rf-title">RECEIVING REPORT</div>
+    </div>
+    <div class="rf-meta">
+      <div class="rf-col">
+        ${meta("RR Code",$("rrcode").value)}
+        ${meta("Supplier",supName)}
+        ${meta("Transaction",ttype)}
+        ${meta("CV No",$("cv_no").value)}
+      </div>
+      <div class="rf-col">
+        ${meta("Date",$("rr_date").value)}
+        ${meta("Storage",stoName)}
+        ${meta("PO No",$("po_no").value)}
+        ${meta("Note",$("note").value)}
       </div>
     </div>
-    <div class="pr-fields">
-      <div class="f"><b>SUPPLIER</b><div class="bx">${supName}</div></div>
-      <div class="f"><b>STORAGE</b><div class="bx">${stoName}</div></div>
-    </div>
-    <div class="pr-types">
-      ${types.map(t=>`<span class="c"><span class="cb">${ttype===t?"✓":""}</span> ${t}</span>`).join("")}
-    </div>
-    <table class="pr-t">
+    <table class="rf-t">
       <thead><tr>
-        <th style="width:9%">ITEM CODE</th><th style="width:17%">ITEM DESCRIPTION</th><th style="width:11%">BRAND</th>
-        <th style="width:8%">NO. OF<br>BOXES</th><th style="width:9%">NET WEIGHT</th>
-        <th style="width:8%">PD</th><th style="width:8%">ED</th><th style="width:8%">PALLET<br>NO.</th><th>REMARKS</th>
+        <th style="width:11%">ITEM CODE</th><th style="width:20%">ITEM DESCRIPTION</th><th style="width:8%">BRAND</th>
+        <th style="width:7%">BOXES</th><th style="width:10%">NET WT (KILOS)</th>
+        <th style="width:11%">PROD. DATE</th><th style="width:11%">EXP. DATE</th><th style="width:7%">PALLET NO.</th><th>REMARKS</th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table>
-    <div class="pr-totrow">
-      <div class="lbl">NOTE</div>
-      <div class="tbx">${esc($("totBoxes").value||"")}</div>
-      <div class="tbx net">${esc($("totWeight").value||"")}</div>
-    </div>
-    <div class="pr-note"><div class="bx">${esc($("note").value||"")}</div></div>
-    <div class="pr-sign">
-      <div class="s"><label>CHECKED BY</label><div class="bx">${esc($("checked_by").value||"")}</div></div>
-      <div class="s"><label>PREPARED BY</label><div class="bx">${esc($("prepared_by").value||"")}</div></div>
-      <div class="s"><label>NOTED BY</label><div class="bx">${esc($("noted_by").value||"")}</div></div>
-      <div class="s"><label>VERIFIED BY</label><div class="bx">${esc($("verified_by").value||"")}</div></div>
+    <div class="rf-sign">
+      ${sign($("checked_by").value,"CHECKED BY")}
+      ${sign($("prepared_by").value,"PREPARED BY")}
+      ${sign($("noted_by").value,"NOTED BY")}
+      ${sign($("verified_by").value,"VERIFIED BY")}
     </div>`;
-  // Two copies: both on one page if they fit, otherwise the 2nd flows to the next page.
-  $("printArea").innerHTML=`<div class="pr-copy">${copy}</div><div class="pr-cut"></div><div class="pr-copy">${copy}</div>`;
 }
 function printForm(){ buildPrintArea(); window.print(); }
 
