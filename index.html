@@ -319,10 +319,11 @@
   <select id="impTarget">
     <option value="isrr_suppliers">Suppliers</option>
     <option value="isrr_storages">Storage</option>
+    <option value="items">Items (Code / Description / Brand)</option>
   </select>
   <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px">Excel / CSV file</label>
   <input type="file" id="impFile" accept=".xlsx,.xls,.csv" />
-  <p style="font-size:12px;color:#777;margin:0 0 14px">Put the names in the <b>first column</b>. A header row like "Name" is skipped automatically, and duplicates are ignored.</p>
+  <p id="impHint" style="font-size:12px;color:#777;margin:0 0 14px">Put the names in the <b>first column</b>. A header row like "Name" is skipped automatically, and duplicates are ignored.</p>
   <div class="row"><span class="status" id="impMsg" style="margin-right:auto"></span>
     <button class="cancel" id="impTemplate">Download template</button>
     <button class="cancel" id="importClose">Close</button>
@@ -658,9 +659,20 @@ async function addUser(){
 
 // ---------- IMPORT SUPPLIERS / STORAGE FROM EXCEL ----------
 const impMsg=(m,err)=>{const e=$("impMsg");e.textContent=m;e.className="status "+(err?"err":"ok");};
-function openImport(){if(!canEdit())return;$("impMsg").textContent="";$("impFile").value="";$("importBg").classList.add("show");}
+function impHintUpdate(){
+  $("impHint").innerHTML = $("impTarget").value==="items"
+    ? "Use <b>3 columns</b>: <b>Item Code</b>, <b>Item Description</b>, <b>Brand</b> (Code &amp; Brand may be blank). A header row is auto-skipped; existing items are updated, new ones added."
+    : "Put the names in the <b>first column</b>. A header row like \"Name\" is skipped automatically, and duplicates are ignored.";
+}
+function openImport(){if(!canEdit())return;$("impMsg").textContent="";$("impFile").value="";impHintUpdate();$("importBg").classList.add("show");}
 function importTemplate(){
   const t=$("impTarget").value;
+  if(t==="items"){
+    const ws=XLSX.utils.aoa_to_sheet([["Item Code","Item Description","Brand"],
+      ["BB700","BEEF BURGER PATTY 700G","GEN"],["PS-OLY","PORK SHOULDER","OLYMEL"]]);
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Items");
+    XLSX.writeFile(wb,"items-template.xlsx");return;
+  }
   const head=t==="isrr_suppliers"?"Supplier Name":"Storage Name";
   const ex=t==="isrr_suppliers"?["MTC PRODUCTION (MSL)","ABC Foods Inc."]:["One Stop Warehousing Solutions, Inc.","Main Cold Storage"];
   const ws=XLSX.utils.aoa_to_sheet([[head],...ex.map(e=>[e])]);
@@ -676,6 +688,7 @@ async function doImport(){
     const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
     const ws=wb.Sheets[wb.SheetNames[0]];
     const rows=XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false});
+    if(target==="items"){ return importItems(rows); }
     let names=rows.map(r=>(r&&r[0]!=null)?String(r[0]).trim():"").filter(Boolean);
     if(names.length && /^(name|supplier|storage|supplier name|storage name)$/i.test(names[0])) names.shift();
     const seen=new Set(),uniq=[];
@@ -690,6 +703,24 @@ async function doImport(){
     await loadMasters();
     impMsg("Imported "+toAdd.length+" new, skipped "+(uniq.length-toAdd.length)+" existing.",false);
   }catch(e){impMsg("Import failed: "+(e.message||e),true);}
+}
+async function importItems(rows){
+  // columns: Item Code | Item Description | Brand
+  let data=rows.map(r=>({code:(r&&r[0]!=null)?String(r[0]).trim():"",desc:(r&&r[1]!=null)?String(r[1]).trim():"",brand:(r&&r[2]!=null)?String(r[2]).trim():""}));
+  // skip header row if it looks like labels
+  if(data.length && /(item\s*code|^code$)/i.test(data[0].code+data[0].desc) ) data.shift();
+  // de-dupe by description (the unique key in the master)
+  const seen=new Set(), items=[];
+  data.forEach(d=>{if(!d.desc)return;const k=d.desc.toLowerCase();if(seen.has(k))return;seen.add(k);items.push({name:d.desc,item_code:d.code||null,brand:d.brand||null});});
+  if(!items.length){impMsg("No item descriptions found in column 2",true);return;}
+  const brandSet=[...new Set(data.map(d=>d.brand).filter(Boolean))];
+  const t=[ sb.from("isrr_item_master").upsert(items,{onConflict:"name"}) ];
+  if(brandSet.length) t.push(sb.from("isrr_brand_master").upsert(brandSet.map(name=>({name})),{onConflict:"name",ignoreDuplicates:true}));
+  const res=await Promise.all(t);
+  const err=res.find(r=>r.error);
+  if(err){impMsg("Import failed: "+err.error.message,true);return;}
+  await loadCatalogs();
+  impMsg("Imported / updated "+items.length+" items"+(brandSet.length?(" and "+brandSet.length+" brand(s)"):"")+".",false);
 }
 
 // ---------- PRINT FORM (official Receiving Report layout) ----------
@@ -795,7 +826,7 @@ function wire(){
   $("modalInput").addEventListener("keydown",e=>{if(e.key==="Enter")modalSave();});
   $("usersClose").onclick=()=>$("usersBg").classList.remove("show");$("nuAdd").onclick=addUser;
   $("euCancel").onclick=()=>$("editUserBg").classList.remove("show");$("euSave").onclick=saveEditUser;
-  $("btnImport").onclick=openImport;$("importClose").onclick=()=>$("importBg").classList.remove("show");$("impRun").onclick=doImport;$("impTemplate").onclick=importTemplate;
+  $("btnImport").onclick=openImport;$("importClose").onclick=()=>$("importBg").classList.remove("show");$("impRun").onclick=doImport;$("impTemplate").onclick=importTemplate;$("impTarget").addEventListener("change",impHintUpdate);
   $("btnIssueSlip").onclick=()=>{if(dirty&&!confirm("Discard unsaved changes?"))return;location.href="issue-slip.html";};
   $("btnInventory").onclick=()=>{if(dirty&&!confirm("Discard unsaved changes?"))return;location.href="inventory.html";};
   ["checked_by","noted_by"].forEach(f=>$(f).addEventListener("input",()=>{if($(f).value.trim())$(f).style.borderBottom="";}));
