@@ -108,9 +108,9 @@
     #printArea{display:block!important;}
     #printArea thead{display:table-header-group;}   /* repeat column headers on each page */
     #printArea .rf-sign{break-inside:avoid;}
-    /* when 2 copies fit a page, make each copy fill its half (signatures pinned to the bottom) */
-    #printArea .rf-copy{display:flex;flex-direction:column;min-height:132mm;}
-    #printArea .rf-copy .rf-sign{margin-top:auto;}
+    /* single copy that fits one page: fill the sheet, signatures pinned to the bottom */
+    #printArea .rf-fill{display:flex;flex-direction:column;min-height:270mm;}
+    #printArea .rf-fill .rf-sign{margin-top:auto;}
   }
   /* ===== Receiving Report printout (clean tabular format) ===== */
   #printArea{color:#000;font-family:"Times New Roman",Georgia,serif;font-size:11px;}
@@ -769,18 +769,15 @@ function buildPrintArea(){
       ${sign($("noted_by").value,"NOTED BY")}
       ${sign($("verified_by").value,"VERIFIED BY")}
     </div>`;
-  // Duplicate (2 copies on one page) only if a single copy fits in half the page; otherwise one copy that flows to more pages.
+  // Single printout. If it fits one A4 page, fill the page (signatures pinned to the bottom); if longer, let it flow across pages.
   const pa=$("printArea");
-  pa.innerHTML=`<div class="rf-copy">${copy}</div>`;
+  pa.innerHTML=`<div class="rf-fill">${copy}</div>`;
   const prev={d:pa.style.display,p:pa.style.position,l:pa.style.left,w:pa.style.width};
   pa.style.display="block";pa.style.position="absolute";pa.style.left="-99999px";pa.style.width="190mm"; // A4 portrait content width
   const h=pa.firstElementChild.offsetHeight;
   pa.style.display=prev.d;pa.style.position=prev.p;pa.style.left=prev.l;pa.style.width=prev.w;
-  const pageH=277*3.7795276;   // A4 portrait usable height (px @96dpi)
-  const twoFit=(h*2+30) <= pageH*0.98;
-  pa.innerHTML = twoFit
-    ? `<div class="rf-copy">${copy}</div><div class="rf-cut"></div><div class="rf-copy">${copy}</div>`
-    : copy;
+  const onePageH=270*3.7795276;   // ~A4 portrait usable height (px @96dpi)
+  pa.innerHTML = (h<=onePageH) ? `<div class="rf-fill">${copy}</div>` : copy;
 }
 function printForm(){ buildPrintArea(); window.print(); }
 
