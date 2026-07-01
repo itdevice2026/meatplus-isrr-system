@@ -20,12 +20,19 @@
   .winbar .who{margin-left:auto;font-weight:600;color:#555;font-size:12px;}
   .winbar .who b{color:var(--red);}
   .toolbar{background:var(--red);display:flex;align-items:center;gap:10px;padding:12px 14px;flex-wrap:wrap;}
-  .tbtn{border:none;border-radius:6px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.15);}
+  .tbtn{border:none;border-radius:6px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.15);transition:transform .12s ease,filter .12s ease,box-shadow .12s ease;}
+  .tbtn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.07);box-shadow:0 4px 10px rgba(0,0,0,.22);}
+  .tbtn:active:not(:disabled){transform:translateY(0);filter:brightness(.96);}
   .tbtn:disabled{opacity:.5;cursor:default;}
   .tbtn.add{background:#f3a07a;color:#222;} .tbtn.save{background:#ffd24d;color:#222;}
   .tbtn.del{background:var(--green);} .tbtn.back{background:var(--salmon);}
   .tbtn.undo{background:var(--gray-btn);} .tbtn.pdf{background:#3b6fd4;}
   .tbtn.users{background:#6b3fa0;} .tbtn.icon{background:var(--salmon);padding:12px 14px;}
+  /* enhanced Print & Sign Out buttons */
+  .tbtn.btn-print,.tbtn.btn-logout{display:inline-flex;align-items:center;gap:8px;letter-spacing:.3px;}
+  .tbtn.btn-print{background:linear-gradient(135deg,#2aa7ff,#0b6bd6);box-shadow:0 2px 6px rgba(11,107,214,.35);}
+  .tbtn.btn-logout{background:linear-gradient(135deg,#5a5a66,#2a2a33);box-shadow:0 2px 6px rgba(0,0,0,.3);}
+  .tbtn.btn-print svg,.tbtn.btn-logout svg{display:block;}
   .toolbar .spacer{flex:1;}
   .sheet{padding:16px 22px 26px;} .sheet.hide{display:none;}
   .topgrid{display:grid;grid-template-columns:1.7fr 1.3fr .9fr;gap:18px;align-items:start;}
@@ -167,8 +174,14 @@
     <button class="tbtn" id="btnInventory" style="background:#0d6efd">Inventory</button>
     <button class="tbtn users" id="btnUsers" style="display:none">Users</button>
     <div class="spacer"></div>
-    <button class="tbtn icon" id="btnPrint" title="Print">🖨</button>
-    <button class="tbtn icon" id="btnLogout" title="Sign out">⎋</button>
+    <button class="tbtn btn-print" id="btnPrint" title="Print">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print
+    </button>
+    <button class="tbtn btn-logout" id="btnLogout" title="Sign out">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
   </div>
 
   <!-- FORM VIEW -->
