@@ -254,10 +254,19 @@ function addRow(){if(!canEdit())return;$("itemBody").appendChild(makeRow());rowC
 
 // ---- catalogs ----
 function fillDatalist(id,arr){let dl=document.getElementById(id);if(!dl){dl=document.createElement("datalist");dl.id=id;document.body.appendChild(dl);}dl.innerHTML=arr.map(v=>`<option value="${esc(v)}">`).join("");}
+async function fetchAllRows(table,cols){   // paginate past Supabase's 1000-row cap
+  let out=[],from=0;const size=1000;
+  for(let i=0;i<200;i++){
+    const{data,error}=await sb.from(table).select(cols).order("name").range(from,from+size-1);
+    if(error||!data||!data.length)break;
+    out=out.concat(data);if(data.length<size)break;from+=size;
+  }
+  return out;
+}
 async function loadCatalogs(){
-  const[{data:it},{data:br}]=await Promise.all([
-    sb.from("isrr_item_master").select("name,brand").order("name"),
-    sb.from("isrr_brand_master").select("name").order("name")]);
+  const[it,br]=await Promise.all([
+    fetchAllRows("isrr_item_master","name,brand"),
+    fetchAllRows("isrr_brand_master","name")]);
   itemBrandMap={};(it||[]).forEach(r=>{if(r.brand)itemBrandMap[(r.name||"").toLowerCase()]=r.brand;});
   fillDatalist("itemlist",(it||[]).map(r=>r.name));fillDatalist("brandlist",(br||[]).map(r=>r.name));
 }
