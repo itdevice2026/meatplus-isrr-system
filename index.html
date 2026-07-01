@@ -844,7 +844,7 @@ async function init(){
   setStatus("Loading…");
   await loadMasters();await loadList();
   await loadCatalogs();
-  if(reports.length){idx=0;await loadCurrent();setStatus("Ready ✓","ok");}else{newRecord();}
+  newRecord();   // always open on a fresh blank record, ready to encode a new transaction
 }
 
 // Item / Brand master lists (auto-built database for autocomplete)
