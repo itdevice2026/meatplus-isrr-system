@@ -794,31 +794,76 @@ function buildPrintArea(){
 }
 function printForm(){ buildPrintArea(); window.print(); }
 
-// ---------- PDF (single full-page copy) ----------
+// ---------- PDF (same clean tabular layout as the Print output) ----------
 function generatePDF(){
-  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"a4"});
-  const W=doc.internal.pageSize.getWidth();const supName=$("supplier").selectedOptions[0]?.text||"";const stoName=$("storage").selectedOptions[0]?.text||"";
-  doc.setFontSize(18);doc.setTextColor(232,17,45);doc.setFont(undefined,"bold");doc.text("MEATPLUS TRADING CORPORATION",W/2,40,{align:"center"});
-  doc.setFontSize(13);doc.setTextColor(40);doc.text("RECEIVING REPORT",W/2,60,{align:"center"});
-  doc.setFontSize(10);doc.setFont(undefined,"normal");
-  const L=40,R=W-40;let y=86;
-  const line=(lx,label,val,rx,label2,val2)=>{doc.setFont(undefined,"bold");doc.text(label,lx,y);doc.setFont(undefined,"normal");doc.text(String(val||""),lx+70,y);
-    if(label2){doc.setFont(undefined,"bold");doc.text(label2,rx,y);doc.setFont(undefined,"normal");doc.text(String(val2||""),rx+70,y);}y+=16;};
-  line(L,"RRCODE:",$("rrcode").value,330,"DATE:",$("rr_date").value);
-  line(L,"Supplier:",supName,330,"CV NO:",$("cv_no").value);
-  line(L,"Storage:",stoName,330,"PO NO:",$("po_no").value);
-  line(L,"Type:",document.querySelector('input[name="ttype"]:checked')?.value||"",330,"NUMBER:",$("number").value);
-  const body=[];allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(!it)return;
-    body.push([it,cell(tr,"brand").value,cell(tr,"number_of_boxes").value,cell(tr,"net_weight").value,cell(tr,"pd").value,cell(tr,"ed").value,cell(tr,"remarks").value]);});
-  doc.autoTable({startY:y+6,head:[["ITEM","BRAND","BOXES","NET WT","PD","ED","REMARKS"]],body,
-    styles:{fontSize:9,cellPadding:3},headStyles:{fillColor:[232,17,45],halign:"center"},
-    columnStyles:{2:{halign:"right"},3:{halign:"right"}},theme:"grid"});
-  let y2=doc.lastAutoTable.finalY+16;
-  doc.setFont(undefined,"bold");doc.text("TOTAL BOXES: "+$("totBoxes").value,L,y2);doc.text("TOTAL NET WEIGHT: "+$("totWeight").value,330,y2);
-  y2+=18;doc.setFont(undefined,"normal");const note=$("note").value.trim();
-  if(note){doc.text(doc.splitTextToSize("NOTE: "+note,R-L),L,y2);y2+=28;}
-  y2+=30;const cw=(R-L)/4;const sig=[["CHECKED BY",$("checked_by").value],["PREPARED BY",$("prepared_by").value],["NOTED BY",$("noted_by").value],["VERIFIED BY",$("verified_by").value]];
-  sig.forEach((s,i)=>{const x=L+cw*i;doc.text(s[1]||"",x+cw/2,y2,{align:"center"});doc.line(x+10,y2+4,x+cw-10,y2+4);doc.setFont(undefined,"bold");doc.setFontSize(9);doc.text(s[0],x+cw/2,y2+16,{align:"center"});doc.setFont(undefined,"normal");doc.setFontSize(10);});
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:"pt",format:"a4",orientation:"portrait"});
+  const W=doc.internal.pageSize.getWidth();   // ~595.28
+  const H=doc.internal.pageSize.getHeight();  // ~841.89
+  const M=28;                                 // ~10mm margin, matches @page
+  const supName=$("supplier").selectedOptions[0]?.text||"";
+  const stoName=$("storage").selectedOptions[0]?.text||"";
+  const ttype=document.querySelector('input[name="ttype"]:checked')?.value||"";
+
+  // ---- header: logo + subtitle (left), RECEIVING REPORT (right) ----
+  let logoBottom=M;
+  try{
+    const img=[...document.querySelectorAll('img[src="meatplus-logo.png"]')].find(i=>i.complete&&i.naturalWidth);
+    if(img){
+      const lw=92, lh=lw*img.naturalHeight/img.naturalWidth;
+      doc.addImage(img,"PNG",M,M,lw,lh);
+      logoBottom=M+lh;
+      doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(90);
+      doc.text("Receiving & Issuance Management System",M,logoBottom+11);
+      logoBottom+=14;
+    }
+  }catch(e){}
+  doc.setFont("times","bold");doc.setFontSize(22);doc.setTextColor(20);
+  doc.text("RECEIVING REPORT",W-M,M+22,{align:"right"});
+
+  // ---- meta: two columns ----
+  let y=Math.max(logoBottom,M+40)+8;
+  doc.setFontSize(9.5);doc.setTextColor(20);
+  const colL=M, colR=W/2+8, lineH=15;
+  const metaLine=(x,label,val,yy)=>{doc.setFont("times","bold");doc.text(label+":",x,yy);const w=doc.getTextWidth(label+": ");doc.setFont("times","normal");doc.text(String(val||""),x+w+2,yy);};
+  const leftRows=[["RR Code",$("rrcode").value],["Supplier",supName],["Transaction",ttype],["CV No",$("cv_no").value]];
+  const rightRows=[["Date",$("rr_date").value],["Storage",stoName],["PO No",$("po_no").value],["Note",$("note").value]];
+  for(let i=0;i<4;i++){metaLine(colL,leftRows[i][0],leftRows[i][1],y+i*lineH);metaLine(colR,rightRows[i][0],rightRows[i][1],y+i*lineH);}
+  y=y+4*lineH+8;
+
+  // ---- table (same columns as print) ----
+  const body=[];
+  allRows().forEach(tr=>{const it=cell(tr,"item").value.trim();if(!it)return;
+    body.push([cell(tr,"item_code").value||"",it,cell(tr,"brand").value||"",cell(tr,"number_of_boxes").value||"",cell(tr,"net_weight").value||"",fmtMDY(cell(tr,"pd").value),fmtMDY(cell(tr,"ed").value),cell(tr,"pallet_no").value||"",cell(tr,"remarks").value||""]);});
+  const gray=[238,238,238];
+  body.push([
+    {content:"TOTAL",colSpan:3,styles:{halign:"center",fontStyle:"bold",fillColor:gray}},
+    {content:$("totBoxes").value||"",styles:{halign:"right",fontStyle:"bold",fillColor:gray}},
+    {content:$("totWeight").value||"",styles:{halign:"right",fontStyle:"bold",fillColor:gray}},
+    {content:"",colSpan:4,styles:{fillColor:gray}}
+  ]);
+  doc.autoTable({
+    startY:y,
+    head:[["ITEM CODE","ITEM DESCRIPTION","BRAND","BOXES","NET WT\n(KILOS)","PROD. DATE\n(mm/dd/yyyy)","EXP. DATE\n(mm/dd/yyyy)","PALLET NO.","REMARKS"]],
+    body,
+    theme:"grid",
+    styles:{fontSize:8,cellPadding:3,lineColor:[120,120,120],lineWidth:.5,textColor:20,valign:"middle",overflow:"linebreak"},
+    headStyles:{fillColor:[232,17,45],textColor:255,halign:"center",fontStyle:"bold",fontSize:7.5,lineColor:[120,120,120],lineWidth:.5},
+    columnStyles:{0:{cellWidth:56},1:{cellWidth:108},2:{cellWidth:48},3:{cellWidth:38,halign:"right"},4:{cellWidth:52,halign:"right"},5:{cellWidth:58,halign:"center"},6:{cellWidth:58,halign:"center"},7:{cellWidth:40,halign:"center"},8:{cellWidth:"auto",halign:"left"}},
+    margin:{left:M,right:M}
+  });
+
+  // ---- signatures ----
+  let sy=doc.lastAutoTable.finalY+44;
+  if(sy>H-60){doc.addPage();sy=M+56;}
+  const sig=[["CHECKED BY",$("checked_by").value],["PREPARED BY",$("prepared_by").value],["NOTED BY",$("noted_by").value],["VERIFIED BY",$("verified_by").value]];
+  const cw=(W-2*M)/4;
+  sig.forEach((s,i)=>{const x=M+cw*i;
+    doc.setFont("times","bold");doc.setFontSize(10);doc.setTextColor(20);doc.text(s[1]||"",x+cw/2,sy-4,{align:"center"});
+    doc.setDrawColor(60);doc.setLineWidth(.6);doc.line(x+12,sy,x+cw-12,sy);
+    doc.setFont("times","bold");doc.setFontSize(8.5);doc.setTextColor(90);doc.text(s[0],x+cw/2,sy+13,{align:"center"});
+  });
+
   doc.save(($("rrcode").value||"receiving-report")+".pdf");
 }
 
