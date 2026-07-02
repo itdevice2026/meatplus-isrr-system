@@ -201,6 +201,9 @@
         <div class="fld"><label>RRCODE</label><input type="text" id="rrcode" placeholder="(auto)" /></div>
         <div class="fld"><label>NUMBER</label><input type="text" id="number" /></div>
       </div>
+      <div>
+        <div class="fld"><label>CREATED BY</label><input type="text" id="created_info" readonly title="Who created this transaction and when" style="min-width:340px;background:#f3f3f3;border:1px solid #ddd;color:#555;font-style:italic" /></div>
+      </div>
       <input type="text" id="seq_no" readonly style="display:none" />
     </div>
 
@@ -490,6 +493,7 @@ function renderCurrent(){
   $("note").value=h.note||"";$("checked_by").value=h.checked_by||"";$("prepared_by").value=h.prepared_by||"";
   $("noted_by").value=h.noted_by||"";$("verified_by").value=h.verified_by||"";
   document.querySelectorAll('input[name="ttype"]').forEach(r=>{r.checked=(r.value===(h.transaction_type||"PURCHASED"));r.disabled=!canEdit();});
+  $("created_info").value=fmtCreated(h.created_by_name,h.created_at);
   const trs=allRows();
   (current?.items||[]).forEach((it,i)=>{const tr=trs[i];if(!tr)return;
     cell(tr,"item_code").value=it.item_code||"";cell(tr,"item").value=it.item||"";cell(tr,"brand").value=it.brand||"";
@@ -498,6 +502,12 @@ function renderCurrent(){
   recalc();$("recInfo").textContent=(reports.length?(idx+1):0)+" of "+reports.length;clearDirty();navButtons();applyRole();
 }
 const blankHeader=()=>({transaction_type:"PURCHASED",rr_date:new Date().toISOString().slice(0,10)});
+function fmtCreated(name,ts){
+  if(!name&&!ts)return"";
+  let t="";
+  if(ts){const d=new Date(ts);if(!isNaN(d))t=d.toLocaleString(undefined,{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});}
+  return (name||"—")+(t?"  ·  "+t:"");
+}
 function navButtons(){$("navFirst").disabled=$("navPrev").disabled=(idx<=0);$("navLast").disabled=$("navNext").disabled=(idx>=reports.length-1||idx<0);}
 
 function gather(){
@@ -532,7 +542,7 @@ async function saveRecord(){
   try{
     let id=current?.header?.id;
     if(id){const{error}=await sb.from("isrr_reports").update(h).eq("id",id);if(error)throw error;}
-    else{if(!h.prepared_by)h.prepared_by=me.name||me.email||null;const{data,error}=await sb.from("isrr_reports").insert(h).select("id").single();if(error)throw error;id=data.id;}
+    else{if(!h.prepared_by)h.prepared_by=me.name||me.email||null;h.created_by=me.id||null;h.created_by_name=me.name||me.email||null;const{data,error}=await sb.from("isrr_reports").insert(h).select("id").single();if(error)throw error;id=data.id;}
     await sb.from("isrr_items").delete().eq("report_id",id);
     if(items.length){const{error:ie}=await sb.from("isrr_items").insert(items.map(it=>({...it,report_id:id})));if(ie)throw ie;}
     await syncCatalogs(items);   // auto-add new Item/Brand to master lists
@@ -544,6 +554,7 @@ function newRecord(){
   current=null;idx=-1;buildRows();
   ["cv_no","po_no","rrcode","number","note","checked_by","prepared_by","noted_by","verified_by"].forEach(f=>$(f).value="");
   $("prepared_by").value=me.name||me.email||"";   // reflects who is making the transaction
+  $("created_info").value="Will be recorded on save — "+(me.name||me.email||"");
   $("supplier").value="";$("storage").value="";$("rr_date").value=new Date().toISOString().slice(0,10);
   $("seq_no").value="(new)";$("rrcode").placeholder="(auto on save)";
   document.querySelectorAll('input[name="ttype"]').forEach(r=>r.checked=(r.value==="PURCHASED"));
@@ -745,6 +756,9 @@ function buildPrintArea(){
   filled.forEach(r=>{body+=`<tr><td class="l">${esc(r.code||"")}</td><td class="l">${esc(r.it||"")}</td><td>${esc(r.brand||"")}</td><td>${esc(r.boxes||"")}</td><td>${esc(r.net||"")}</td><td>${fmtMDY(r.pd)}</td><td>${fmtMDY(r.ed)}</td><td>${esc(r.pallet||"")}</td><td class="l">${esc(r.rem||"")}</td></tr>`;});
   if(!filled.length) body=`<tr><td class="l">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
   body+=`<tr class="rf-total"><td colspan="3">TOTAL</td><td>${esc($("totBoxes").value||"")}</td><td>${esc($("totWeight").value||"")}</td><td colspan="4"></td></tr>`;
+  const cby=current?.header?.created_by_name||"";
+  const cts=current?.header?.created_at?new Date(current.header.created_at).toLocaleString():"";
+  const createdLine=(cby||cts)?`<div style="margin-top:6px;font-size:10px;color:#555;text-align:right">Created by: <b>${esc(cby||"—")}</b>${cts?("  ·  "+esc(cts)):""}</div>`:"";
   const sign=(name,label)=>`<div class="s"><div class="nm">${esc(name||"")}</div><div class="lbl">${label}</div></div>`;
   const copy=`
     <div class="rf-head">
@@ -781,7 +795,8 @@ function buildPrintArea(){
       ${sign($("prepared_by").value,"PREPARED BY")}
       ${sign($("noted_by").value,"NOTED BY")}
       ${sign($("verified_by").value,"VERIFIED BY")}
-    </div>`;
+    </div>
+    ${createdLine}`;
   // Single printout. If it fits one A4 page, fill the page (signatures pinned to the bottom); if longer, let it flow across pages.
   const pa=$("printArea");
   pa.innerHTML=`<div class="rf-fill">${copy}</div>`;
@@ -863,6 +878,10 @@ function generatePDF(){
     doc.setDrawColor(60);doc.setLineWidth(.6);doc.line(x+12,sy,x+cw-12,sy);
     doc.setFont("times","bold");doc.setFontSize(8.5);doc.setTextColor(90);doc.text(s[0],x+cw/2,sy+13,{align:"center"});
   });
+
+  const cby=current?.header?.created_by_name||"";
+  const cts=current?.header?.created_at?new Date(current.header.created_at).toLocaleString():"";
+  if(cby||cts){doc.setFont("times","normal");doc.setFontSize(8);doc.setTextColor(90);doc.text("Created by: "+(cby||"—")+(cts?("  ·  "+cts):""),W-M,sy+34,{align:"right"});}
 
   doc.save(($("rrcode").value||"receiving-report")+".pdf");
 }
