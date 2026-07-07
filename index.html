@@ -244,6 +244,7 @@
       <h2>All Receiving Reports</h2>
       <input type="search" id="listSearch" placeholder="Search RRCODE / supplier / storage…" style="border:1px solid #bbb;border-radius:4px;padding:7px 10px;flex:1" />
       <span class="pill" id="listCount">0 records</span>
+      <button class="tbtn btn-print" id="btnPrintList" title="Print all reports shown" style="padding:8px 14px">🖨 Print List</button>
     </div>
     <div style="max-height:60vh;overflow:auto;border:1px solid #e2e2e2;border-radius:4px">
       <table class="list">
@@ -809,6 +810,51 @@ function buildPrintArea(){
 }
 function printForm(){ buildPrintArea(); window.print(); }
 
+// ---------- PRINT ALL (summary of the reports currently listed) ----------
+function printList(){
+  const rows=[...document.querySelectorAll('#listBody tr')].filter(tr=>tr.children.length>=7);
+  const fmtN=n=>n.toLocaleString(undefined,{maximumFractionDigits:3});
+  let totB=0,totW=0;
+  const bodyHTML=rows.map(tr=>{
+    const c=tr.children;
+    const bx=c[5].innerText.trim(), wt=c[6].innerText.trim();
+    totB+=parseFloat(bx.replace(/,/g,""))||0; totW+=parseFloat(wt.replace(/,/g,""))||0;
+    return `<tr><td>${esc(c[0].innerText.trim())}</td><td>${esc(c[1].innerText.trim())}</td><td>${esc(c[2].innerText.trim())}</td><td>${esc(c[3].innerText.trim())}</td><td>${esc(c[4].innerText.trim())}</td><td class="r">${esc(bx)}</td><td class="r">${esc(wt)}</td></tr>`;
+  }).join("");
+  const q=$("listSearch").value.trim();
+  const now=new Date().toLocaleString();
+  const pa=$("printArea");
+  pa.innerHTML=`
+  <style>
+    @page{size:A4 portrait;margin:12mm}
+    .rl-wrap{font-family:"Times New Roman",Times,serif;color:#111}
+    .rl-head{display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:10px}
+    .rl-head img{width:78px;height:auto}
+    .rl-head .t{font-size:20px;font-weight:bold;line-height:1.1}
+    .rl-head .s{font-size:10.5px;color:#555}
+    .rl-meta{font-size:10.5px;color:#333;margin-left:auto;text-align:right;line-height:1.4}
+    table.rl{width:100%;border-collapse:collapse;font-size:10.5px}
+    table.rl th,table.rl td{border:1px solid #777;padding:4px 6px;vertical-align:top}
+    table.rl thead th{background:#e8112d;color:#fff;text-align:left}
+    table.rl td.r,table.rl th.r{text-align:right;white-space:nowrap}
+    table.rl tfoot td{font-weight:bold;background:#eee}
+    table.rl thead{display:table-header-group}
+  </style>
+  <div class="rl-wrap">
+    <div class="rl-head">
+      <img src="meatplus-logo.png" alt="MEATPLUS Trading Corporation" />
+      <div><div class="t">RECEIVING REPORTS — SUMMARY</div><div class="s">Meatplus Trading Corporation &middot; Receiving &amp; Issuance Management System</div></div>
+      <div class="rl-meta">Printed: ${esc(now)}<br>Records: ${rows.length}${q?("<br>Filter: &ldquo;"+esc(q)+"&rdquo;"):""}</div>
+    </div>
+    <table class="rl">
+      <thead><tr><th>RRCODE</th><th>Date</th><th>Type</th><th>Supplier</th><th>Storage</th><th class="r">Boxes</th><th class="r">Net Wt</th></tr></thead>
+      <tbody>${bodyHTML||'<tr><td colspan="7" style="text-align:center">No records</td></tr>'}</tbody>
+      <tfoot><tr><td colspan="5">TOTAL &mdash; ${rows.length} report(s)</td><td class="r">${fmtN(totB)}</td><td class="r">${fmtN(totW)}</td></tr></tfoot>
+    </table>
+  </div>`;
+  window.print();
+}
+
 // ---------- PDF (same clean tabular layout as the Print output) ----------
 function generatePDF(){
   const {jsPDF}=window.jspdf;
@@ -891,6 +937,7 @@ function wire(){
   $("btnAdd").onclick=newRecord;$("btnSave").onclick=saveRecord;$("btnDelete").onclick=deleteRecord;$("btnAddRow").onclick=addRow;
   $("btnUndo").onclick=()=>{if(current)renderCurrent();else newRecord();setStatus("Reverted");};
   $("btnList").onclick=()=>toggleList(!$("listView").classList.contains("show"));
+  $("btnPrintList").onclick=printList;
   $("btnPdf").onclick=generatePDF;$("btnPrint").onclick=printForm;$("btnLogout").onclick=doLogout;
   $("btnUsers").onclick=openUsers;
   $("navFirst").onclick=async()=>{idx=0;await loadCurrent();};
