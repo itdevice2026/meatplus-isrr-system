@@ -780,7 +780,6 @@ function buildPrintArea(){
         ${meta("Date",$("rr_date").value)}
         ${meta("Storage",stoName)}
         ${meta("PO No",$("po_no").value)}
-        ${meta("Note",$("note").value)}
       </div>
     </div>
     <table class="rf-t">
@@ -791,6 +790,7 @@ function buildPrintArea(){
       </tr></thead>
       <tbody>${body}</tbody>
     </table>
+    ${$("note").value.trim()?`<div class="rf-note" style="margin:8px 0 4px;font-size:11px"><b>Note:</b> ${esc($("note").value.trim())}</div>`:""}
     <div class="rf-sign">
       ${sign($("checked_by").value,"CHECKED BY")}
       ${sign($("prepared_by").value,"PREPARED BY")}
@@ -888,8 +888,8 @@ function generatePDF(){
   const colL=M, colR=W/2+8, lineH=15;
   const metaLine=(x,label,val,yy)=>{doc.setFont("times","bold");doc.text(label+":",x,yy);const w=doc.getTextWidth(label+": ");doc.setFont("times","normal");doc.text(String(val||""),x+w+2,yy);};
   const leftRows=[["RR Code",$("rrcode").value],["Supplier",supName],["Transaction",ttype],["CV No",$("cv_no").value]];
-  const rightRows=[["Date",$("rr_date").value],["Storage",stoName],["PO No",$("po_no").value],["Note",$("note").value]];
-  for(let i=0;i<4;i++){metaLine(colL,leftRows[i][0],leftRows[i][1],y+i*lineH);metaLine(colR,rightRows[i][0],rightRows[i][1],y+i*lineH);}
+  const rightRows=[["Date",$("rr_date").value],["Storage",stoName],["PO No",$("po_no").value]];
+  for(let i=0;i<4;i++){metaLine(colL,leftRows[i][0],leftRows[i][1],y+i*lineH);if(rightRows[i])metaLine(colR,rightRows[i][0],rightRows[i][1],y+i*lineH);}
   y=y+4*lineH+8;
 
   // ---- table (same columns as print) ----
@@ -914,8 +914,21 @@ function generatePDF(){
     margin:{left:M,right:M}
   });
 
+  // ---- note (before signatures) ----
+  let afterTable=doc.lastAutoTable.finalY+18;
+  const noteVal=$("note").value.trim();
+  if(noteVal){
+    if(afterTable>H-90){doc.addPage();afterTable=M+30;}
+    doc.setFont("times","bold");doc.setFontSize(9.5);doc.setTextColor(20);doc.text("Note:",M,afterTable);
+    const nw=doc.getTextWidth("Note: ");
+    doc.setFont("times","normal");
+    const lines=doc.splitTextToSize(noteVal,(W-2*M)-nw-4);
+    doc.text(lines,M+nw+2,afterTable);
+    afterTable+=lines.length*12+6;
+  }
+
   // ---- signatures ----
-  let sy=doc.lastAutoTable.finalY+44;
+  let sy=afterTable+30;
   if(sy>H-60){doc.addPage();sy=M+56;}
   const sig=[["CHECKED BY",$("checked_by").value],["PREPARED BY",$("prepared_by").value],["NOTED BY",$("noted_by").value],["VERIFIED BY",$("verified_by").value]];
   const cw=(W-2*M)/4;
