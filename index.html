@@ -388,8 +388,7 @@ function applyRole(){
   document.querySelectorAll("#formView input, #formView select, #formView textarea, .miniadd")
     .forEach(el=>{ if(el.id==="seq_no"||el.id==="totBoxes"||el.id==="totWeight")return;
       el.disabled = !ed; });
-  // verified-by only for approver/admin
-  $("verified_by").disabled = !canVerify();
+  // signature names (incl. Verified By) editable by any editor
 }
 
 // ---------- MASTERS ----------
